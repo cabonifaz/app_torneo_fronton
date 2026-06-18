@@ -13,8 +13,6 @@ export default function Torneo() {
     try {
       const res = await fetch('/api/torneo');
       const json = await res.json();
-      
-      // Solo actualizamos si la base de datos realmente nos envió los arreglos
       if (json.posiciones && json.partidos) {
         setData(json);
       } else {
@@ -66,20 +64,62 @@ export default function Torneo() {
     accionPartido({ id, pareja1_id: parseInt(s1), pareja2_id: parseInt(s2) });
   };
 
-  const sortearFase = async (partidosFase, todosLosClasificados) => {
-    const partidosVacios = partidosFase.filter(p => !p.pareja1_id || !p.pareja2_id);
-    if (partidosVacios.length === 0) return alert("Todas las llaves ya están asignadas.");
-    const idsUsados = partidosFase.flatMap(p => [p.pareja1_id, p.pareja2_id]).filter(id => id !== null);
-    const clasificadosLibres = todosLosClasificados.filter(c => !idsUsados.includes(c.id));
-    if (clasificadosLibres.length < partidosVacios.length * 2) {
-      return alert("Faltan clasificados para llenar los partidos vacíos restantes.");
+  const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
+    const partidosVacios = partidosCuartos.filter(p => !p.pareja1_id || !p.pareja2_id);
+    if (partidosVacios.length === 0) return alert("Todas las parejas ya están asignadas en los grupos de Cuartos.");
+    
+    if (clasificadosFase1.length < 8) {
+      return alert("Se necesitan las 8 parejas clasificadas de la Fase de Grupos para realizar el sorteo.");
     }
-    const mezclados = [...clasificadosLibres].sort(() => Math.random() - 0.5);
-    const promesas = partidosVacios.map((p, i) => fetch('/api/partidos', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.id, pareja1_id: mezclados[i * 2].id, pareja2_id: mezclados[i * 2 + 1].id })
-    }));
+
+    const mezclados = [...clasificadosFase1].sort(() => Math.random() - 0.5);
+    const grupoA = mezclados.slice(0, 4);
+    const grupoB = mezclados.slice(4, 8);
+
+    const idGruposCuartos = [...new Set(partidosCuartos.map(p => p.grupo_id))].sort((a,b) => a - b);
+    if (idGruposCuartos.length < 2) return alert("Falta configurar los 2 grupos de cuartos en la base de datos.");
+
+    const idGrupo1 = idGruposCuartos[0];
+    const idGrupo2 = idGruposCuartos[1];
+
+    const crucesRelativos = [
+      { p1Idx: 0, p2Idx: 1 }, { p1Idx: 2, p2Idx: 3 },
+      { p1Idx: 0, p2Idx: 2 }, { p1Idx: 1, p2Idx: 3 },
+      { p1Idx: 0, p2Idx: 3 }, { p1Idx: 1, p2Idx: 2 }
+    ];
+
+    const promesas = [];
+
+    const partidosG1 = partidosCuartos.filter(p => p.grupo_id === idGrupo1);
+    crucesRelativos.forEach((cruce, idx) => {
+      if (partidosG1[idx]) {
+        promesas.push(fetch('/api/partidos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: partidosG1[idx].id,
+            pareja1_id: grupoA[cruce.p1Idx].id,
+            pareja2_id: grupoA[cruce.p2Idx].id
+          })
+        }));
+      }
+    });
+
+    const partidosG2 = partidosCuartos.filter(p => p.grupo_id === idGrupo2);
+    crucesRelativos.forEach((cruce, idx) => {
+      if (partidosG2[idx]) {
+        promesas.push(fetch('/api/partidos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: partidosG2[idx].id,
+            pareja1_id: grupoB[cruce.p1Idx].id,
+            pareja2_id: grupoB[cruce.p2Idx].id
+          })
+        }));
+      }
+    });
+
     await Promise.all(promesas);
     cargarDatos();
   };
@@ -116,29 +156,31 @@ export default function Torneo() {
 
   if (cargando) return <div style={styles.loading}>Cargando Torneo...</div>;
 
-  const gruposList = [...new Set(data.posiciones.map(p => p.nombre_grupo))];
-  const partidosGrupos = data.partidos.filter(p => p.fase === 'grupos');
-  const faseGruposTerminada = partidosGrupos.length > 0 && partidosGrupos.every(p => p.jugado === 1);
+  const partidosFase1 = data.partidos.filter(p => p.fase === 'grupos');
+  const partidosCuartos = data.partidos.filter(p => p.fase === 'cuartos');
+  const partidoFinal = data.partidos.find(p => p.fase === 'final');
 
-  const clasificadosGrupos = gruposList.flatMap(g =>
+  const gruposFase1 = [...new Set(partidosFase1.map(p => p.nombre_grupo))];
+  const gruposCuartos = [...new Set(partidosCuartos.map(p => p.nombre_grupo))];
+
+  const fase1Terminada = partidosFase1.length > 0 && partidosFase1.every(p => p.jugado === 1);
+  const cuartosTerminado = partidosCuartos.length > 0 && partidosCuartos.every(p => p.jugado === 1);
+
+  const clasificadosFase1 = gruposFase1.flatMap(g =>
     data.posiciones.filter(p => p.nombre_grupo === g).slice(0, 2).map(p => ({ id: p.pareja_id, nombre: p.nombre_pareja }))
   );
 
-  const ganadoresFase = (faseStr) => data.partidos.filter(p => p.fase === faseStr && p.jugado === 1).map(p => (
-    p.puntos_pareja1 > p.puntos_pareja2
-      ? { id: p.pareja1_id, nombre: p.nombre_pareja1 }
-      : { id: p.pareja2_id, nombre: p.nombre_pareja2 }
-  ));
+  const clasificadosFinal = gruposCuartos.flatMap(g =>
+    data.posiciones.filter(p => p.nombre_grupo === g).slice(0, 1).map(p => ({ id: p.pareja_id, nombre: p.nombre_pareja }))
+  );
 
-  const clasificadosSemis = ganadoresFase('cuartos');
-  const clasificadosFinal = ganadoresFase('semifinal');
+  const tablaGeneral = [...data.posiciones]
+    .filter(pos => gruposFase1.includes(pos.nombre_grupo))
+    .sort((a, b) => {
+      if (b.pg !== a.pg) return b.pg - a.pg;
+      return b.diferencia_puntos - a.diferencia_puntos;
+    });
 
-  const tablaGeneral = [...data.posiciones].sort((a, b) => {
-    if (b.pg !== a.pg) return b.pg - a.pg;
-    return b.diferencia_puntos - a.diferencia_puntos;
-  });
-
-  const partidoFinal = data.partidos.find(p => p.fase === 'final');
   const hayGanadorFinal = partidoFinal?.jugado === 1;
   const nombreGanadorFinal = hayGanadorFinal
     ? (partidoFinal.puntos_pareja1 > partidoFinal.puntos_pareja2 ? partidoFinal.nombre_pareja1 : partidoFinal.nombre_pareja2)
@@ -149,8 +191,7 @@ export default function Torneo() {
     ? (partidoFinal.puntos_pareja1 > partidoFinal.puntos_pareja2 ? partidoFinal.nombre_pareja2 : partidoFinal.nombre_pareja1)
     : null;
 
-  // ─── Tabla de posiciones por grupo ───────────────────────────────────────────
-  const TablaPosicionesGrupo = ({ nombreGrupo }) => {
+  const TablaPosicionesGrupo = ({ nombreGrupo, limiteClasificacion = 2 }) => {
     const posicionesGrupo = data.posiciones
       .filter(p => p.nombre_grupo === nombreGrupo)
       .sort((a, b) => {
@@ -158,7 +199,7 @@ export default function Torneo() {
         return b.diferencia_puntos - a.diferencia_puntos;
       });
 
-    const partidosDelGrupo = partidosGrupos.filter(p => p.nombre_grupo === nombreGrupo);
+    const partidosDelGrupo = data.partidos.filter(p => p.nombre_grupo === nombreGrupo);
     const hayPartidosJugados = partidosDelGrupo.some(p => p.jugado === 1);
 
     return (
@@ -167,7 +208,7 @@ export default function Torneo() {
           <span style={styles.tablaPosTitle}>Posiciones</span>
           {hayPartidosJugados && (
             <span style={styles.tablaPosLegend}>
-              <span style={styles.legendDot} />clasifican top 2
+              <span style={styles.legendDot} />clasifican top {limiteClasificacion}
             </span>
           )}
         </div>
@@ -183,7 +224,7 @@ export default function Torneo() {
           </thead>
           <tbody>
             {posicionesGrupo.map((pos, idx) => {
-              const clasifica = idx < 2;
+              const clasifica = idx < limiteClasificacion;
               const pj = partidosDelGrupo.filter(p =>
                 (p.pareja1_id === pos.pareja_id || p.pareja2_id === pos.pareja_id) && p.jugado === 1
               ).length;
@@ -210,9 +251,9 @@ export default function Torneo() {
     );
   };
 
-  // ─── Tarjeta de partido ───────────────────────────────────────────────────────
-  // esFaseGrupos: oculta el botón "Cambiar" para que no se reseteen parejas fijas
+  // AQUÍ ESTÁ EL CAMBIO PRINCIPAL (La tarjeta con el botón Cambiar)
   const renderMatchCard = (partido, opcionesParejas, tituloPartido, esFaseGrupos = false) => {
+    // Para no mostrar en los selectores las parejas que ya están asignadas en esta misma fase
     const idsAsignados = data.partidos.filter(p => p.fase === partido.fase).flatMap(p => [p.pareja1_id, p.pareja2_id]).filter(id => id !== null);
     const opcionesLibres = opcionesParejas.filter(pareja => !idsAsignados.includes(pareja.id));
 
@@ -220,15 +261,21 @@ export default function Torneo() {
       return (
         <div key={partido.id} style={styles.matchCard}>
           <h4 style={styles.matchTitle}>{tituloPartido}</h4>
-          <select id={`s1-${partido.id}`} style={styles.select}>
-            <option value="">Elegir Pareja 1...</option>
-            {opcionesLibres.map(o => <option key={`1-${o.id}`} value={o.id}>{o.nombre}</option>)}
-          </select>
-          <select id={`s2-${partido.id}`} style={styles.select}>
-            <option value="">Elegir Pareja 2...</option>
-            {opcionesLibres.map(o => <option key={`2-${o.id}`} value={o.id}>{o.nombre}</option>)}
-          </select>
-          <button onClick={() => asignarParejas(partido.id)} style={styles.btnAssign}>Fijar Manual</button>
+          {esFaseGrupos ? (
+            <p style={{ fontSize: '0.85rem', color: '#718096', fontStyle: 'italic' }}>Esperando asignación...</p>
+          ) : (
+            <>
+              <select id={`s1-${partido.id}`} style={styles.select}>
+                <option value="">Elegir Pareja 1...</option>
+                {opcionesLibres.map(o => <option key={`1-${o.id}`} value={o.id}>{o.nombre}</option>)}
+              </select>
+              <select id={`s2-${partido.id}`} style={styles.select}>
+                <option value="">Elegir Pareja 2...</option>
+                {opcionesLibres.map(o => <option key={`2-${o.id}`} value={o.id}>{o.nombre}</option>)}
+              </select>
+              <button onClick={() => asignarParejas(partido.id)} style={styles.btnAssign}>Fijar Parejas</button>
+            </>
+          )}
         </div>
       );
     }
@@ -252,7 +299,7 @@ export default function Torneo() {
         {!partido.jugado ? (
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => guardarResultado(partido.id)} style={styles.btnSave}>Guardar</button>
-            {/* Botón "Cambiar" oculto en fase de grupos para proteger parejas fijas */}
+            {/* El botón cambiar se oculta si estamos en fase de grupos inicial */}
             {!esFaseGrupos && (
               <button onClick={() => accionPartido({ id: partido.id, reset_parejas: true })} style={styles.btnWarning}>Cambiar</button>
             )}
@@ -263,23 +310,6 @@ export default function Torneo() {
             <button onClick={() => accionPartido({ id: partido.id, reset: true })} style={styles.btnReset}>Reset</button>
           </div>
         )}
-      </div>
-    );
-  };
-
-  const BracketBox = ({ partido }) => {
-    const p1Gana = partido?.jugado && partido.puntos_pareja1 > partido.puntos_pareja2;
-    const p2Gana = partido?.jugado && partido.puntos_pareja2 > partido.puntos_pareja1;
-    return (
-      <div style={styles.bracketBox}>
-        <div style={{ ...styles.bracketTeam, backgroundColor: p1Gana ? '#e6fffa' : '#fff', fontWeight: p1Gana ? 'bold' : 'normal' }}>
-          <span style={styles.bracketName}>{partido?.nombre_pareja1 || 'Por definir'}</span>
-          <span>{partido?.jugado ? partido.puntos_pareja1 : '-'}</span>
-        </div>
-        <div style={{ ...styles.bracketTeam, borderBottom: 'none', backgroundColor: p2Gana ? '#e6fffa' : '#fff', fontWeight: p2Gana ? 'bold' : 'normal' }}>
-          <span style={styles.bracketName}>{partido?.nombre_pareja2 || 'Por definir'}</span>
-          <span>{partido?.jugado ? partido.puntos_pareja2 : '-'}</span>
-        </div>
       </div>
     );
   };
@@ -337,39 +367,32 @@ export default function Torneo() {
       </header>
 
       <div style={styles.tabsContainer}>
-        <button onClick={() => setTab('grupos')} style={tab === 'grupos' ? styles.tabActive : styles.tab}>Fase Grupos</button>
-        <button onClick={() => setTab('tabla')} style={tab === 'tabla' ? styles.tabActive : styles.tab}>Tabla General</button>
-        <button onClick={() => setTab('fase_final')} style={tab === 'fase_final' ? styles.tabActive : styles.tab}>Llaves Finales</button>
+        <button onClick={() => setTab('grupos')} style={tab === 'grupos' ? styles.tabActive : styles.tab}>Fase 1: Grupos</button>
+        <button onClick={() => setTab('tabla')} style={tab === 'tabla' ? styles.tabActive : styles.tab}>Tabla General (Fase 1)</button>
+        <button onClick={() => setTab('cuartos_fase')} style={tab === 'cuartos_fase' ? styles.tabActive : styles.tab}>Fase 2: Cuartos</button>
+        <button onClick={() => setTab('gran_final')} style={tab === 'gran_final' ? styles.tabActive : styles.tab}>La Gran Final</button>
       </div>
 
-      {/* ── FASE DE GRUPOS ── */}
-      {tab === 'grupos' && gruposList.map((nombreGrupo) => {
-        const partidosDelGrupo = partidosGrupos.filter(p => p.nombre_grupo === nombreGrupo);
+      {tab === 'grupos' && gruposFase1.map((nombreGrupo) => {
+        const partidosDelGrupo = partidosFase1.filter(p => p.nombre_grupo === nombreGrupo);
         return (
           <section key={nombreGrupo} style={styles.groupCard}>
-            {/* Cabecera del grupo */}
             <h2 style={styles.groupTitle}>{nombreGrupo}</h2>
-
-            {/* TABLA DE POSICIONES del grupo */}
-            <TablaPosicionesGrupo nombreGrupo={nombreGrupo} />
-
-            {/* Divisor */}
+            <TablaPosicionesGrupo nombreGrupo={nombreGrupo} limiteClasificacion={2} />
             <div style={styles.divider} />
-
-            {/* Partidos del grupo */}
             <p style={styles.seccionLabel}>Partidos</p>
             <div style={styles.matchesGrid}>
-              {partidosDelGrupo.map((p, i) => renderMatchCard(p, [], `Partido ${i + 1}`))}
+              {/* esFaseGrupos = true oculta el botón Cambiar aquí */}
+              {partidosDelGrupo.map((p, i) => renderMatchCard(p, [], `Partido ${i + 1}`, true))}
             </div>
           </section>
         );
       })}
 
-      {/* ── TABLA GENERAL ── */}
       {tab === 'tabla' && (
         <section style={styles.groupCard}>
-          <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General Consolidada</h2>
-          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Ordenado por Partidos Ganados y Diferencia de Puntos</p>
+          <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General Consolidada (Fase 1)</h2>
+          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Top 2 de cada grupo avanzan a la Fase 2</p>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
@@ -397,68 +420,73 @@ export default function Torneo() {
         </section>
       )}
 
-      {/* ── FASE FINAL ── */}
-      {tab === 'fase_final' && (
+      {tab === 'cuartos_fase' && (
         <div style={styles.finalPhaseSection}>
-          {!faseGruposTerminada ? (
-            <div style={styles.lockedPhase}>🔒 Termina todos los partidos de grupos para habilitar el Sorteo y el Mapa de Llaves.</div>
+          {!fase1Terminada ? (
+            <div style={styles.lockedPhase}>🔒 Completa la totalidad de los partidos de la Fase 1 para habilitar el Sorteo de Grupos de Cuartos.</div>
           ) : (
             <>
-              <div style={styles.bracketContainer}>
-                <h3 style={{ textAlign: 'center', color: '#2d3748', marginBottom: '15px' }}>🗺️ Mapa de Llaves</h3>
-                <div style={styles.bracketScroll}>
-                  <div style={styles.bracketCol}>
-                    <div style={styles.bracketHeader}>Cuartos</div>
-                    {data.partidos.filter(p => p.fase === 'cuartos').map(p => <BracketBox key={p.id} partido={p} />)}
-                  </div>
-                  <div style={{ ...styles.bracketCol, justifyContent: 'space-around' }}>
-                    <div style={styles.bracketHeader}>Semifinal</div>
-                    {data.partidos.filter(p => p.fase === 'semifinal').map(p => <BracketBox key={p.id} partido={p} />)}
-                  </div>
-                  <div style={{ ...styles.bracketCol, justifyContent: 'center' }}>
-                    <div style={styles.bracketHeader}>Final</div>
-                    {data.partidos.filter(p => p.fase === 'final').map(p => <BracketBox key={p.id} partido={p} />)}
-                  </div>
+              <div style={{ ...styles.groupCard, backgroundColor: '#f0fff4', border: '1px solid #c6f6d5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontWeight: '700', color: '#22543d' }}>Sorteo de Cuartos de Final</h3>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#2f855a' }}>Distribuye las 8 parejas en 2 nuevos grupos de forma aleatoria.</p>
                 </div>
+                <button onClick={() => sortearFaseCuartos(partidosCuartos, clasificadosFase1)} style={styles.btnSorteo}>🎲 Ejecutar Sorteo</button>
               </div>
 
-              <section style={styles.groupCard}>
-                <div style={styles.headerFlex}>
-                  <h2 style={styles.groupTitle}>Cuartos de Final</h2>
-                  <button onClick={() => sortearFase(data.partidos.filter(p => p.fase === 'cuartos'), clasificadosGrupos)} style={styles.btnSorteo}>🎲 Sorteo</button>
-                </div>
-                <p style={styles.faseInfo}>Clasifican los 2 primeros de cada grupo · 8 parejas · 4 cruces</p>
-                <div style={styles.matchesGrid}>
-                  {data.partidos.filter(p => p.fase === 'cuartos').map((p, i) => renderMatchCard(p, clasificadosGrupos, `Cruce ${i + 1}`))}
-                </div>
-              </section>
-
-              <section style={styles.groupCard}>
-                <div style={styles.headerFlex}>
-                  <h2 style={styles.groupTitle}>Semifinales</h2>
-                  <button onClick={() => sortearFase(data.partidos.filter(p => p.fase === 'semifinal'), clasificadosSemis)} style={styles.btnSorteo}>🎲 Sorteo</button>
-                </div>
-                <p style={styles.faseInfo}>Ganadores de cuartos · 4 parejas · 2 partidos</p>
-                <div style={styles.matchesGrid}>
-                  {data.partidos.filter(p => p.fase === 'semifinal').map((p, i) => renderMatchCard(p, clasificadosSemis, `Semifinal ${i + 1}`))}
-                </div>
-              </section>
-
-              <section style={{ ...styles.groupCard, border: '2px solid #ecc94b', overflow: 'hidden' }}>
-                <h2 style={{ ...styles.groupTitle, color: '#b7791f', textAlign: 'center', marginBottom: '4px' }}>
-                  🏆 LA GRAN FINAL 🏆
-                </h2>
-                <p style={{ ...styles.faseInfo, textAlign: 'center' }}>Ganadores de semifinales · set a 21</p>
-                <div style={styles.matchesGrid}>
-                  {data.partidos.filter(p => p.fase === 'final').map(p => renderMatchCard(p, clasificadosFinal, `Partido por el Campeonato`))}
-                </div>
-                {hayGanadorFinal && (
-                  <div style={{ marginTop: '20px' }}>
-                    <PodioGanador />
-                  </div>
-                )}
-              </section>
+              {gruposCuartos.map((nombreGrupo) => {
+                const partidosDelGrupo = partidosCuartos.filter(p => p.nombre_grupo === nombreGrupo);
+                return (
+                  <section key={nombreGrupo} style={styles.groupCard}>
+                    <h2 style={{ ...styles.groupTitle, color: '#2b6cb0' }}>{nombreGrupo}</h2>
+                    <TablaPosicionesGrupo nombreGrupo={nombreGrupo} limiteClasificacion={1} />
+                    <div style={styles.divider} />
+                    <p style={styles.seccionLabel}>Partidos de Grupo</p>
+                    <div style={styles.matchesGrid}>
+                      {/* Mandamos los clasificadosFase1 para los dropdowns, y esFaseGrupos = false para mostrar el botón Cambiar */}
+                      {partidosDelGrupo.map((p, i) => renderMatchCard(p, clasificadosFase1, `Partido ${i + 1}`, false))}
+                    </div>
+                  </section>
+                );
+              })}
             </>
+          )}
+        </div>
+      )}
+
+      {tab === 'gran_final' && (
+        <div style={styles.finalPhaseSection}>
+          {!cuartosTerminado ? (
+            <div style={styles.lockedPhase}>🔒 Completa todos los encuentros de la Fase 2 (Cuartos) para definir las posiciones y habilitar la Gran Final.</div>
+          ) : (
+            <section style={{ ...styles.groupCard, border: '2px solid #ecc94b', overflow: 'hidden' }}>
+              <h2 style={{ ...styles.groupTitle, color: '#b7791f', textAlign: 'center', marginBottom: '4px' }}>
+                🏆 LA GRAN FINAL 🏆
+              </h2>
+              <p style={{ ...styles.faseInfo, textAlign: 'center' }}>Ganador Grupo 1 vs Ganador Grupo 2 · Set único a 21 puntos</p>
+              
+              {partidoFinal && (!partidoFinal.pareja1_id || !partidoFinal.pareja2_id) && clasificadosFinal.length >= 2 ? (
+                <div style={{ textAlign: 'center', padding: '15px' }}>
+                  <p style={{ fontWeight: '600' }}>Parejas Clasificadas: {clasificadosFinal[0].nombre} y {clasificadosFinal[1].nombre}</p>
+                  <button 
+                    onClick={() => accionPartido({ id: partidoFinal.id, pareja1_id: clasificadosFinal[0].id, pareja2_id: clasificadosFinal[1].id })} 
+                    style={styles.btnAssign}
+                  >
+                    Fijar Rivales en la Final
+                  </button>
+                </div>
+              ) : partidoFinal ? (
+                <div style={styles.matchesGrid}>
+                  {renderMatchCard(partidoFinal, clasificadosFinal, `Partido por el Campeonato`, false)}
+                </div>
+              ) : null}
+
+              {hayGanadorFinal && (
+                <div style={{ marginTop: '20px' }}>
+                  <PodioGanador />
+                </div>
+              )}
+            </section>
           )}
         </div>
       )}
@@ -472,19 +500,15 @@ const styles = {
   header: { textAlign: 'center', marginBottom: '15px' },
   title: { margin: '0 0 5px 0', color: '#1a202c', fontSize: '1.6rem' },
   subtitle: { margin: 0, color: '#718096' },
-
   tabsContainer: { display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '4px', marginBottom: '20px' },
-  tab: { flex: 1, padding: '10px', textAlign: 'center', border: 'none', background: 'transparent', color: '#4a5568', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', transition: '0.2s', fontSize: '0.8rem' },
-  tabActive: { flex: 1, padding: '10px', textAlign: 'center', border: 'none', background: '#fff', color: '#2b6cb0', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', fontSize: '0.8rem' },
-
+  tab: { flex: 1, padding: '10px 5px', textAlign: 'center', border: 'none', background: 'transparent', color: '#4a5568', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', transition: '0.2s', fontSize: '0.78rem' },
+  tabActive: { flex: 1, padding: '10px 5px', textAlign: 'center', border: 'none', background: '#fff', color: '#2b6cb0', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', fontSize: '0.78rem' },
   headerFlex: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px', borderBottom: '2px solid #edf2f7', paddingBottom: '10px' },
   groupCard: { backgroundColor: '#fff', borderRadius: '12px', padding: '15px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  groupTitle: { margin: '0 0 12px 0', color: '#2d3748', fontSize: '1.2rem' },
+  groupTitle: { margin: '0 0 12px 0', color: '#2d3748', fontSize: '1.2rem', fontWeight: '700' },
   divider: { height: '1px', backgroundColor: '#edf2f7', margin: '16px 0' },
   seccionLabel: { fontSize: '0.8rem', fontWeight: '700', color: '#718096', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 10px 0' },
   faseInfo: { fontSize: '0.8rem', color: '#718096', margin: '0 0 12px 0' },
-
-  // Tabla de posiciones por grupo
   tablaPosWrapper: { backgroundColor: '#f8fafc', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' },
   tablaPosHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#edf2f7' },
   tablaPosTitle: { fontSize: '0.78rem', fontWeight: '700', color: '#4a5568', textTransform: 'uppercase', letterSpacing: '1px' },
@@ -500,8 +524,6 @@ const styles = {
   tdPosNombre: { padding: '8px', textAlign: 'left', color: '#2d3748', fontWeight: '500' },
   badgeClasifica: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#38a169', color: '#fff', fontSize: '0.75rem', fontWeight: '700' },
   badgeNormal: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#e2e8f0', color: '#718096', fontSize: '0.75rem', fontWeight: '600' },
-
-  // Tabla general
   tableWrapper: { overflowX: 'auto', marginBottom: '10px' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' },
   th: { padding: '8px', color: '#4a5568', borderBottom: '2px solid #e2e8f0' },
@@ -512,8 +534,6 @@ const styles = {
   tdCenter: { padding: '8px', textAlign: 'center' },
   tdBold: { padding: '8px', textAlign: 'center', fontWeight: '700' },
   badgeGrupo: { backgroundColor: '#edf2f7', color: '#4a5568', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' },
-
-  // Partidos
   matchesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' },
   matchCard: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', backgroundColor: '#faf5ff' },
   matchCardPlayed: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', backgroundColor: '#f7fafc', opacity: 0.9 },
@@ -521,27 +541,18 @@ const styles = {
   matchTeams: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' },
   teamLine: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' },
   scoreInput: { width: '50px', padding: '6px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px' },
+  
+  // ESTILOS PARA LOS SELECTORES Y BOTÓN CAMBIAR
   select: { width: '100%', padding: '8px', marginBottom: '8px', border: '1px solid #cbd5e0', borderRadius: '4px', fontSize: '0.9rem' },
+  btnAssign: { width: '100%', padding: '10px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' },
+  btnWarning: { flex: 1, padding: '8px', backgroundColor: '#fffaf0', color: '#dd6b20', border: '1px solid #fbd38d', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' },
 
   btnSave: { flex: 2, padding: '8px', backgroundColor: '#6b46c1', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
-  btnWarning: { flex: 1, padding: '8px', backgroundColor: '#fffaf0', color: '#dd6b20', border: '1px solid #fbd38d', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' },
   btnUpdate: { flex: 1, padding: '8px', backgroundColor: '#edf2f7', color: '#4a5568', border: '1px solid #cbd5e0', borderRadius: '6px', cursor: 'pointer' },
   btnReset: { flex: 1, padding: '8px', backgroundColor: '#fed7d7', color: '#c53030', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  btnAssign: { width: '100%', padding: '10px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
-  btnSorteo: { padding: '6px 12px', backgroundColor: '#38a169', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' },
-
+  btnSorteo: { padding: '8px 16px', backgroundColor: '#38a169', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' },
   finalPhaseSection: {},
   lockedPhase: { textAlign: 'center', padding: '20px', backgroundColor: '#edf2f7', borderRadius: '8px', color: '#718096', fontWeight: '500', marginTop: '20px' },
-
-  bracketContainer: { backgroundColor: '#fff', borderRadius: '12px', padding: '15px', marginBottom: '25px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' },
-  bracketScroll: { display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px' },
-  bracketCol: { display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '180px', flex: 1 },
-  bracketHeader: { textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', color: '#718096', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' },
-  bracketBox: { border: '1px solid #cbd5e0', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
-  bracketTeam: { display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid #edf2f7', fontSize: '0.8rem', color: '#2d3748' },
-  bracketName: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px' },
-
-  // Podio
   podioWrapper: { background: 'linear-gradient(135deg, #fffbea 0%, #fef3c7 50%, #fde68a 100%)', border: '2px solid #f6c000', borderRadius: '16px', padding: '20px 16px', boxShadow: '0 4px 20px rgba(246,192,0,0.3)' },
   podioDestellos: { display: 'flex', justifyContent: 'space-around', marginBottom: '10px' },
   destello: { fontSize: '1.4rem' },
