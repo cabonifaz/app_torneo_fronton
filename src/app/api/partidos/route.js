@@ -20,3 +20,35 @@ export async function PUT(request) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
+
+export async function POST(request) {
+  try {
+    const { fase, pareja1_id, pareja2_id } = await request.json();
+
+    await pool.query(
+      'INSERT INTO partidos (fase, pareja1_id, pareja2_id, grupo_id, puntos_pareja1, puntos_pareja2, jugado) VALUES (?, ?, ?, NULL, 0, 0, 0)',
+      [fase, pareja1_id, pareja2_id]
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error al insertar partido:", error);
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { fase } = await request.json();
+
+    await pool.query(
+      'DELETE FROM partidos WHERE fase = ?',
+      [fase]
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error al eliminar partidos:", error);
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+  }
+}
