@@ -66,7 +66,7 @@ export default function Torneo() {
     accionPartido({ id, pareja1_id: parseInt(s1), pareja2_id: parseInt(s2) });
   };
 
-  const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
+const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
     const partidosVacios = partidosCuartos.filter(p => !p.pareja1_id || !p.pareja2_id);
     if (partidosVacios.length === 0) return alert("Todas las parejas ya están asignadas en los grupos de Cuartos.");
 
@@ -74,55 +74,59 @@ export default function Torneo() {
       return alert("Se necesitan las 8 parejas clasificadas de la Fase de Grupos para realizar el sorteo.");
     }
 
-    const mezclados = [...clasificadosFase1].sort(() => Math.random() - 0.5);
-    const grupoA = mezclados.slice(0, 4);
-    const grupoB = mezclados.slice(4, 8);
+    // ESCENARIO 1: Si todos los partidos están vacíos, creamos el Round Robin matemático perfecto
+    if (partidosVacios.length === partidosCuartos.length) {
+      const mezclados = [...clasificadosFase1].sort(() => Math.random() - 0.5);
+      const grupoA = mezclados.slice(0, 4);
+      const grupoB = mezclados.slice(4, 8);
 
-    const idGruposCuartos = [...new Set(partidosCuartos.map(p => p.grupo_id))].sort((a, b) => a - b);
-    if (idGruposCuartos.length < 2) return alert("Falta configurar los 2 grupos de cuartos en la base de datos.");
+      const idGruposCuartos = [...new Set(partidosCuartos.map(p => p.grupo_id))].sort((a, b) => a - b);
+      if (idGruposCuartos.length < 2) return alert("Falta configurar los 2 grupos de cuartos en la base de datos.");
 
-    const idGrupo1 = idGruposCuartos[0];
-    const idGrupo2 = idGruposCuartos[1];
+      const idGrupo1 = idGruposCuartos[0];
+      const idGrupo2 = idGruposCuartos[1];
 
-    const crucesRelativos = [
-      { p1Idx: 0, p2Idx: 1 }, { p1Idx: 2, p2Idx: 3 },
-      { p1Idx: 0, p2Idx: 2 }, { p1Idx: 1, p2Idx: 3 },
-      { p1Idx: 0, p2Idx: 3 }, { p1Idx: 1, p2Idx: 2 }
-    ];
+      const crucesRelativos = [
+        { p1Idx: 0, p2Idx: 1 }, { p1Idx: 2, p2Idx: 3 },
+        { p1Idx: 0, p2Idx: 2 }, { p1Idx: 1, p2Idx: 3 },
+        { p1Idx: 0, p2Idx: 3 }, { p1Idx: 1, p2Idx: 2 }
+      ];
 
-    const promesas = [];
+      const promesas = [];
 
-    const partidosG1 = partidosCuartos.filter(p => p.grupo_id === idGrupo1);
-    crucesRelativos.forEach((cruce, idx) => {
-      if (partidosG1[idx]) {
-        promesas.push(fetch('/api/partidos', {
+      const partidosG1 = partidosCuartos.filter(p => p.grupo_id === idGrupo1);
+      crucesRelativos.forEach((cruce, idx) => {
+        if (partidosG1[idx]) {
+          promesas.push(fetch('/api/partidos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: partidosG1[idx].id, pareja1_id: grupoA[cruce.p1Idx].id, pareja2_id: grupoA[cruce.p2Idx].id }) }));
+        }
+      });
+
+      const partidosG2 = partidosCuartos.filter(p => p.grupo_id === idGrupo2);
+      crucesRelativos.forEach((cruce, idx) => {
+        if (partidosG2[idx]) {
+          promesas.push(fetch('/api/partidos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: partidosG2[idx].id, pareja1_id: grupoB[cruce.p1Idx].id, pareja2_id: grupoB[cruce.p2Idx].id }) }));
+        }
+      });
+
+      await Promise.all(promesas);
+    } 
+    // ESCENARIO 2: Si el usuario ya fijó partidos a mano, el sorteo SOLO rellena los vacíos
+    else {
+      const promesas = partidosVacios.map(p => {
+        const mezclados = [...clasificadosFase1].sort(() => Math.random() - 0.5);
+        return fetch('/api/partidos', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: partidosG1[idx].id,
-            pareja1_id: grupoA[cruce.p1Idx].id,
-            pareja2_id: grupoA[cruce.p2Idx].id
+            id: p.id,
+            pareja1_id: mezclados[0].id,
+            pareja2_id: mezclados[1].id
           })
-        }));
-      }
-    });
-
-    const partidosG2 = partidosCuartos.filter(p => p.grupo_id === idGrupo2);
-    crucesRelativos.forEach((cruce, idx) => {
-      if (partidosG2[idx]) {
-        promesas.push(fetch('/api/partidos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: partidosG2[idx].id,
-            pareja1_id: grupoB[cruce.p1Idx].id,
-            pareja2_id: grupoB[cruce.p2Idx].id
-          })
-        }));
-      }
-    });
-
-    await Promise.all(promesas);
+        });
+      });
+      await Promise.all(promesas);
+    }
+    
     cargarDatos();
   };
 
@@ -229,8 +233,15 @@ export default function Torneo() {
   const cuartosTerminado = partidosCuartos.length > 0 && partidosCuartos.every(p => p.jugado === 1);
   const semifinalTerminado = partidosSemifinal.length > 0 && partidosSemifinal.every(p => p.jugado === 1);
 
-  const clasificadosFase1 = gruposFase1.flatMap(g =>
-    data.posiciones.filter(p => p.nombre_grupo === g).slice(0, 2).map(p => ({ id: p.pareja_id, nombre: p.nombre_pareja }))
+const clasificadosFase1 = gruposFase1.flatMap(g =>
+    data.posiciones
+      .filter(p => p.nombre_grupo === g)
+      .sort((a, b) => {
+        if (b.pg !== a.pg) return b.pg - a.pg;
+        return b.diferencia_puntos - a.diferencia_puntos;
+      })
+      .slice(0, 2)
+      .map(p => ({ id: p.pareja_id, nombre: p.nombre_pareja }))
   );
 
   // Top 2 de cada grupo de Cuartos → van a Semifinal
@@ -250,12 +261,9 @@ export default function Torneo() {
       : { id: p.pareja2_id, nombre: p.nombre_pareja2 }
     );
 
-  const tablaGeneral = [...data.posiciones]
+const tablaGeneral = [...data.posiciones]
     .filter(pos => gruposFase1.includes(pos.nombre_grupo))
-    .sort((a, b) => {
-      if (b.pg !== a.pg) return b.pg - a.pg;
-      return b.diferencia_puntos - a.diferencia_puntos;
-    });
+    .sort((a, b) => b.diferencia_puntos - a.diferencia_puntos); // Ordena de mayor a menor diferencia
 
   const hayGanadorFinal = partidoFinal?.jugado === 1;
   const nombreGanadorFinal = hayGanadorFinal
@@ -303,6 +311,8 @@ export default function Torneo() {
               <th style={styles.thPosLeft}>Pareja</th>
               <th style={styles.thPos}>PJ</th>
               <th style={styles.thPos}>PG</th>
+              <th style={styles.thPos} title="Puntos a Favor">PF</th>
+              <th style={styles.thPos} title="Puntos en Contra">PC</th>
               <th style={styles.thPos}>Dif</th>
             </tr>
           </thead>
@@ -323,6 +333,9 @@ export default function Torneo() {
                   <td style={styles.tdPosNombre}>{pos.nombre_pareja}</td>
                   <td style={styles.tdPos}>{pj}</td>
                   <td style={styles.tdPos}>{pos.pg}</td>
+                  {/* Nuevas columnas de acumulados */}
+                  <td style={styles.tdPos}>{pos.puntos_favor ?? 0}</td>
+                  <td style={styles.tdPos}>{pos.puntos_contra ?? 0}</td>
                   <td style={{ ...styles.tdPos, fontWeight: '700', color: pos.diferencia_puntos >= 0 ? '#276749' : '#c53030' }}>
                     {pos.diferencia_puntos > 0 ? `+${pos.diferencia_puntos}` : pos.diferencia_puntos}
                   </td>
@@ -336,8 +349,14 @@ export default function Torneo() {
   };
 
   const renderMatchCard = (partido, opcionesParejas, tituloPartido, esFaseGrupos = false) => {
+    // Detectamos si es una fase de eliminación directa o un formato de grupos (Round Robin)
+    const esEliminacion = partido.fase === 'semifinal' || partido.fase === 'final';
     const idsAsignados = data.partidos.filter(p => p.fase === partido.fase).flatMap(p => [p.pareja1_id, p.pareja2_id]).filter(id => id !== null);
-    const opcionesLibres = opcionesParejas.filter(pareja => !idsAsignados.includes(pareja.id));
+    
+    // En Grupos/Cuartos una pareja juega varias veces, por lo que NO debemos ocultarlas de la lista
+    const opcionesLibres = esEliminacion 
+      ? opcionesParejas.filter(pareja => !idsAsignados.includes(pareja.id))
+      : opcionesParejas;
 
     if (!partido.pareja1_id || !partido.pareja2_id) {
       return (
@@ -487,6 +506,15 @@ export default function Torneo() {
           />
           {(() => {
             const partidosDelGrupo = partidosFase1.filter(p => p.nombre_grupo === grupoActivoFase1);
+            
+            // Lógica para ordenar los 6 partidos y dar descanso a los jugadores (Round Robin Óptimo)
+            // BD original: 0(AB), 1(AC), 2(AD), 3(BC), 4(BD), 5(CD)
+            // Nuevo Orden: 0(AB), 5(CD), 1(AC), 4(BD), 2(AD), 3(BC)
+            const ordenIdeal = [0, 5, 1, 4, 2, 3];
+            const partidosOrdenados = partidosDelGrupo.length === 6
+              ? ordenIdeal.map(idx => partidosDelGrupo[idx]).filter(Boolean)
+              : partidosDelGrupo; // Fallback por si algún grupo tiene menos de 6 partidos
+
             return (
               <section style={styles.groupCard}>
                 <h2 style={styles.groupTitle}>{grupoActivoFase1}</h2>
@@ -494,7 +522,7 @@ export default function Torneo() {
                 <div style={styles.divider} />
                 <p style={styles.seccionLabel}>Partidos</p>
                 <div style={styles.matchesGrid}>
-                  {partidosDelGrupo.map((p, i) => renderMatchCard(p, [], `Partido ${i + 1}`, true))}
+                  {partidosOrdenados.map((p, i) => renderMatchCard(p, [], `Partido ${i + 1}`, true))}
                 </div>
               </section>
             );
@@ -506,7 +534,7 @@ export default function Torneo() {
       {tab === 'tabla' && (
         <section style={styles.groupCard}>
           <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General Consolidada (Fase 1)</h2>
-          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Top 2 de cada grupo avanzan a la Fase 2</p>
+          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Top 8 ordenado por Diferencia de Puntos</p>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
@@ -519,15 +547,20 @@ export default function Torneo() {
                 </tr>
               </thead>
               <tbody>
-                {tablaGeneral.map((pos, idx) => (
-                  <tr key={pos.pareja_id} style={idx < 8 ? styles.rowQualified : styles.rowStandard}>
-                    <td style={styles.tdCenter}><strong>{idx + 1}</strong></td>
-                    <td style={styles.tdMain}>{pos.nombre_pareja}</td>
-                    <td style={styles.tdCenter}><span style={styles.badgeGrupo}>{pos.nombre_grupo.replace('GRUPO ', 'G')}</span></td>
-                    <td style={styles.tdCenter}>{pos.pg}</td>
-                    <td style={styles.tdBold}>{pos.diferencia_puntos}</td>
-                  </tr>
-                ))}
+                {tablaGeneral.map((pos, idx) => {
+                  // Verificamos si esta pareja logró clasificar en su grupo
+                  const esClasificado = clasificadosFase1.some(c => c.id === pos.pareja_id);
+
+                  return (
+                    <tr key={pos.pareja_id} style={esClasificado ? styles.rowQualified : styles.rowStandard}>
+                      <td style={styles.tdCenter}><strong>{idx + 1}</strong></td>
+                      <td style={styles.tdMain}>{pos.nombre_pareja}</td>
+                      <td style={styles.tdCenter}><span style={styles.badgeGrupo}>{pos.nombre_grupo.replace('GRUPO ', 'G')}</span></td>
+                      <td style={styles.tdCenter}>{pos.pg}</td>
+                      <td style={styles.tdBold}>{pos.diferencia_puntos}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
