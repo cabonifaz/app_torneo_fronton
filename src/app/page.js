@@ -323,7 +323,7 @@ const tablaGeneral = [...data.posiciones]
           </thead>
           <tbody>
             {posicionesGrupo.map((pos, idx) => {
-              const clasifica = idx < limiteClasificacion;
+              const clasifica = hayPartidosJugados && idx < limiteClasificacion;
               const pj = partidosDelGrupo.filter(p =>
                 (p.pareja1_id === pos.pareja_id || p.pareja2_id === pos.pareja_id) && p.jugado === 1
               ).length;
@@ -553,8 +553,11 @@ const tablaGeneral = [...data.posiciones]
               </thead>
               <tbody>
                 {tablaGeneral.map((pos, idx) => {
-                  // Verificamos si esta pareja logró clasificar en su grupo
-                  const esClasificado = clasificadosFase1.some(c => c.id === pos.pareja_id);
+                  // 1. Verificamos si en el grupo de esta pareja ya se jugó al menos un partido
+                  const grupoIniciado = partidosFase1.some(p => p.nombre_grupo === pos.nombre_grupo && p.jugado === 1);
+                  
+                  // 2. Solo pintamos de verde si el grupo ya empezó a jugarse Y la pareja está en el Top 2
+                  const esClasificado = grupoIniciado && clasificadosFase1.some(c => c.id === pos.pareja_id);
 
                   return (
                     <tr key={pos.pareja_id} style={esClasificado ? styles.rowQualified : styles.rowStandard}>
