@@ -263,7 +263,12 @@ const clasificadosFase1 = gruposFase1.flatMap(g =>
 
 const tablaGeneral = [...data.posiciones]
     .filter(pos => gruposFase1.includes(pos.nombre_grupo))
-    .sort((a, b) => b.diferencia_puntos - a.diferencia_puntos); // Ordena de mayor a menor diferencia
+    .sort((a, b) => {
+      // 1. Primero ordenamos por Partidos Ganados (PG) de mayor a menor
+      if (b.pg !== a.pg) return b.pg - a.pg;
+      // 2. Si empatan en PG, desempatamos por Diferencia de Puntos
+      return b.diferencia_puntos - a.diferencia_puntos;
+    });
 
   const hayGanadorFinal = partidoFinal?.jugado === 1;
   const nombreGanadorFinal = hayGanadorFinal
@@ -534,7 +539,7 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'tabla' && (
         <section style={styles.groupCard}>
           <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General Consolidada (Fase 1)</h2>
-          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Top 8 ordenado por Diferencia de Puntos</p>
+          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Ordenado por Partidos Ganados y Diferencia de Puntos</p>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
