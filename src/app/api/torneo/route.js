@@ -18,7 +18,9 @@ export async function GET() {
       ORDER BY FIELD(p.fase, 'grupos', 'cuartos', 'semifinal', 'final'), p.grupo_id, p.id
     `);
 
-    return NextResponse.json({ posiciones, partidos });
+    const [[torneo]] = await pool.query('SELECT nombre, subtitulo FROM torneo WHERE id = 1');
+
+    return NextResponse.json({ torneo: torneo || null, posiciones, partidos });
   } catch (error) {
     console.error("Detalle del error SQL:", error);
     return NextResponse.json({ error: 'Error al cargar datos' }, { status: 500 });

@@ -1,8 +1,29 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 
+// Paleta de marca Ranked
+const C = {
+  navy: '#0B0F1E',
+  card: '#131A2E',
+  card2: '#1A2238',
+  borde: '#252F4A',
+  texto: '#F6F6F6',
+  suave: '#A3ABC2',
+  tenue: '#6B7490',
+  lima: '#ADF238',
+  limaFondo: 'rgba(173,242,56,0.10)',
+  limaBorde: 'rgba(173,242,56,0.35)',
+  rojo: '#FF5C6C',
+  rojoFondo: 'rgba(255,92,108,0.12)',
+  ambar: '#F5B83D',
+  ambarFondo: 'rgba(245,184,61,0.12)',
+  oro: '#F5C542',
+};
+const FUENTE_TITULO = 'var(--font-titulo), var(--font-texto), system-ui, sans-serif';
+const PUNTOS_SET = 21;
+
 export default function Torneo() {
-  const [data, setData] = useState({ posiciones: [], partidos: [] });
+  const [data, setData] = useState({ torneo: null, posiciones: [], partidos: [] });
   const [cargando, setCargando] = useState(true);
   const [tab, setTab] = useState('grupos');
   const [subTabGrupos, setSubTabGrupos] = useState(null);
@@ -56,7 +77,11 @@ export default function Torneo() {
     const p1 = document.getElementById(`p1-${id}`).value;
     const p2 = document.getElementById(`p2-${id}`).value;
     if (p1 === "" || p2 === "") return alert("Ingresa ambos puntajes.");
-    accionPartido({ id, puntos_pareja1: parseInt(p1), puntos_pareja2: parseInt(p2) });
+    const n1 = parseInt(p1), n2 = parseInt(p2);
+    if (n1 < 0 || n2 < 0) return alert("Los puntajes no pueden ser negativos.");
+    if (n1 === n2) return alert("No puede haber empate: el set se juega hasta que una pareja gane.");
+    if (Math.max(n1, n2) < PUNTOS_SET && !confirm(`El set es a ${PUNTOS_SET} puntos y ninguna pareja llegó a ${PUNTOS_SET}. ¿Guardar igual?`)) return;
+    accionPartido({ id, puntos_pareja1: n1, puntos_pareja2: n2 });
   };
 
   const asignarParejas = (id) => {
@@ -68,7 +93,7 @@ export default function Torneo() {
 
 const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
     const partidosVacios = partidosCuartos.filter(p => !p.pareja1_id || !p.pareja2_id);
-    if (partidosVacios.length === 0) return alert("Todas las parejas ya están asignadas en los grupos de Cuartos.");
+    if (partidosVacios.length === 0) return alert("Todas las parejas ya están asignadas en las series de la Fase 2.");
 
     if (clasificadosFase1.length < 8) {
       return alert("Se necesitan las 8 parejas clasificadas de la Fase de Grupos para realizar el sorteo.");
@@ -81,7 +106,7 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
       const grupoB = mezclados.slice(4, 8);
 
       const idGruposCuartos = [...new Set(partidosCuartos.map(p => p.grupo_id))].sort((a, b) => a - b);
-      if (idGruposCuartos.length < 2) return alert("Falta configurar los 2 grupos de cuartos en la base de datos.");
+      if (idGruposCuartos.length < 2) return alert("Falta configurar las 2 series de la Fase 2 en la base de datos.");
 
       const idGrupo1 = idGruposCuartos[0];
       const idGrupo2 = idGruposCuartos[1];
@@ -133,7 +158,7 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
   // ── Crea los 2 partidos de semifinal en la BD con las parejas ya asignadas ──
   const setupSemifinal = async (clasificadosCuartos) => {
     if (clasificadosCuartos.length < 4) {
-      return alert("Se necesitan las 4 parejas clasificadas de Cuartos.");
+      return alert("Se necesitan las 4 parejas clasificadas de la Fase 2.");
     }
 
     // Cruce: 1°G1 vs 2°G2  |  1°G2 vs 2°G1
@@ -214,7 +239,12 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  if (cargando) return <div style={styles.loading}>Cargando Torneo...</div>;
+  if (cargando) return (
+    <div style={styles.loading}>
+      <img src="/brand/ranked-mark.png" alt="Ranked" style={{ width: '72px', height: 'auto' }} />
+      <span>Cargando torneo…</span>
+    </div>
+  );
 
   const partidosFase1 = data.partidos.filter(p => p.fase === 'grupos');
   const partidosCuartos = data.partidos.filter(p => p.fase === 'cuartos');
@@ -330,13 +360,16 @@ const tablaGeneral = [...data.posiciones]
                       : <span style={styles.badgeNormal}>{idx + 1}</span>
                     }
                   </td>
-                  <td style={styles.tdPosNombre}>{pos.nombre_pareja}</td>
+                  <td style={styles.tdPosNombre}>
+                    {pos.nombre_pareja}
+                    {pos.cabeza_serie === 1 && <span style={styles.estrella} title="Cabeza de serie">★</span>}
+                  </td>
                   <td style={styles.tdPos}>{pj}</td>
                   <td style={styles.tdPos}>{pos.pg}</td>
                   {/* Nuevas columnas de acumulados */}
                   <td style={styles.tdPos}>{pos.puntos_favor ?? 0}</td>
                   <td style={styles.tdPos}>{pos.puntos_contra ?? 0}</td>
-                  <td style={{ ...styles.tdPos, fontWeight: '700', color: pos.diferencia_puntos >= 0 ? '#276749' : '#c53030' }}>
+                  <td style={{ ...styles.tdPos, fontWeight: '700', color: pos.diferencia_puntos > 0 ? C.lima : pos.diferencia_puntos < 0 ? C.rojo : C.suave }}>
                     {pos.diferencia_puntos > 0 ? `+${pos.diferencia_puntos}` : pos.diferencia_puntos}
                   </td>
                 </tr>
@@ -363,7 +396,7 @@ const tablaGeneral = [...data.posiciones]
         <div key={partido.id} style={styles.matchCard}>
           <h4 style={styles.matchTitle}>{tituloPartido}</h4>
           {esFaseGrupos ? (
-            <p style={{ fontSize: '0.85rem', color: '#718096', fontStyle: 'italic' }}>Esperando asignación...</p>
+            <p style={{ fontSize: '0.85rem', color: C.tenue, fontStyle: 'italic', margin: 0 }}>Esperando asignación...</p>
           ) : (
             <>
               <select id={`s1-${partido.id}`} style={styles.select}>
@@ -388,13 +421,15 @@ const tablaGeneral = [...data.posiciones]
       <div key={partido.id} style={partido.jugado ? styles.matchCardPlayed : styles.matchCard}>
         <h4 style={styles.matchTitle}>{tituloPartido}</h4>
         <div style={styles.matchTeams}>
-          <div style={{ ...styles.teamLine, backgroundColor: p1Gana ? '#f0fff4' : 'transparent', borderRadius: '6px', padding: '4px 6px' }}>
-            <span style={{ fontWeight: p1Gana ? '700' : '400', color: p1Gana ? '#276749' : '#2d3748' }}>{partido.nombre_pareja1}</span>
-            <input type="number" id={`p1-${partido.id}`} defaultValue={partido.jugado ? partido.puntos_pareja1 : ''} style={{ ...styles.scoreInput, borderColor: p1Gana ? '#68d391' : '#cbd5e0' }} />
+          {/* Los inputs no son controlados: el key incluye el resultado guardado para que se regeneren
+              cuando llega un cambio desde otro dispositivo y no queden mostrando valores viejos */}
+          <div style={{ ...styles.teamLine, backgroundColor: p1Gana ? C.limaFondo : 'transparent' }}>
+            <span style={{ fontWeight: p1Gana ? '700' : '500', color: p1Gana ? C.lima : C.texto }}>{partido.nombre_pareja1}</span>
+            <input key={`p1-${partido.id}-${partido.jugado}-${partido.puntos_pareja1}`} type="number" inputMode="numeric" min="0" aria-label={`Puntos ${partido.nombre_pareja1}`} id={`p1-${partido.id}`} defaultValue={partido.jugado ? partido.puntos_pareja1 : ''} style={{ ...styles.scoreInput, borderColor: p1Gana ? C.lima : C.borde }} />
           </div>
-          <div style={{ ...styles.teamLine, backgroundColor: p2Gana ? '#f0fff4' : 'transparent', borderRadius: '6px', padding: '4px 6px' }}>
-            <span style={{ fontWeight: p2Gana ? '700' : '400', color: p2Gana ? '#276749' : '#2d3748' }}>{partido.nombre_pareja2}</span>
-            <input type="number" id={`p2-${partido.id}`} defaultValue={partido.jugado ? partido.puntos_pareja2 : ''} style={{ ...styles.scoreInput, borderColor: p2Gana ? '#68d391' : '#cbd5e0' }} />
+          <div style={{ ...styles.teamLine, backgroundColor: p2Gana ? C.limaFondo : 'transparent' }}>
+            <span style={{ fontWeight: p2Gana ? '700' : '500', color: p2Gana ? C.lima : C.texto }}>{partido.nombre_pareja2}</span>
+            <input key={`p2-${partido.id}-${partido.jugado}-${partido.puntos_pareja2}`} type="number" inputMode="numeric" min="0" aria-label={`Puntos ${partido.nombre_pareja2}`} id={`p2-${partido.id}`} defaultValue={partido.jugado ? partido.puntos_pareja2 : ''} style={{ ...styles.scoreInput, borderColor: p2Gana ? C.lima : C.borde }} />
           </div>
         </div>
         {!partido.jugado ? (
@@ -460,8 +495,8 @@ const tablaGeneral = [...data.posiciones]
   );
 
   // ── Componente de sub-pestañas reutilizable ──
-  const SubTabs = ({ grupos, grupoActivo, onSelect, colorActivo = '#6b46c1' }) => (
-    <div style={styles.subTabsContainer}>
+  const SubTabs = ({ grupos, grupoActivo, onSelect, colorActivo = C.lima }) => (
+    <div className="tabs-scroll" style={styles.subTabsContainer}>
       {grupos.map(nombre => {
         const esActivo = nombre === grupoActivo;
         return (
@@ -483,17 +518,25 @@ const tablaGeneral = [...data.posiciones]
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={styles.title}>🏆 Torneo de Frontón</h1>
-        <p style={styles.subtitle}>Día del Padre</p>
+        <img src="/brand/ranked-wordmark.png" alt="Ranked" style={styles.logo} />
+        <div style={styles.headerTexto}>
+          <h1 style={styles.title}>{data.torneo?.nombre || 'Torneo de Frontón'}</h1>
+          {data.torneo?.subtitulo && <p style={styles.subtitle}>{data.torneo.subtitulo}</p>}
+        </div>
       </header>
 
-      <div style={styles.tabsContainer}>
-        <button onClick={() => setTab('grupos')} style={tab === 'grupos' ? styles.tabActive : styles.tab}>Fase 1</button>
-        <button onClick={() => setTab('tabla')} style={tab === 'tabla' ? styles.tabActive : styles.tab}>Tabla</button>
-        <button onClick={() => setTab('cuartos_fase')} style={tab === 'cuartos_fase' ? styles.tabActive : styles.tab}>Cuartos</button>
-        <button onClick={() => setTab('semifinal')} style={tab === 'semifinal' ? styles.tabActive : styles.tab}>Semifinal</button>
-        <button onClick={() => setTab('gran_final')} style={tab === 'gran_final' ? styles.tabActive : styles.tab}>Gran Final</button>
-      </div>
+      <nav className="tabs-scroll" style={styles.tabsContainer}>
+        {[
+          ['grupos', 'Fase 1'],
+          ['tabla', 'Tabla'],
+          ['cuartos_fase', 'Fase 2'],
+          ['semifinal', 'Semifinal'],
+          ['gran_final', 'Final'],
+          ['reglas', 'Reglas'],
+        ].map(([id, etiqueta]) => (
+          <button key={id} onClick={() => setTab(id)} style={tab === id ? styles.tabActive : styles.tab}>{etiqueta}</button>
+        ))}
+      </nav>
 
       {/* ── FASE 1: GRUPOS con sub-pestañas ── */}
       {tab === 'grupos' && gruposFase1.length > 0 && (
@@ -502,7 +545,6 @@ const tablaGeneral = [...data.posiciones]
             grupos={gruposFase1}
             grupoActivo={grupoActivoFase1}
             onSelect={setSubTabGrupos}
-            colorActivo="#6b46c1"
           />
           {(() => {
             const partidosDelGrupo = partidosFase1.filter(p => p.nombre_grupo === grupoActivoFase1);
@@ -533,8 +575,8 @@ const tablaGeneral = [...data.posiciones]
       {/* ── TABLA GENERAL ── */}
       {tab === 'tabla' && (
         <section style={styles.groupCard}>
-          <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General Consolidada (Fase 1)</h2>
-          <p style={{ fontSize: '0.85rem', color: '#718096', textAlign: 'center', marginBottom: '15px' }}>Ordenado por Partidos Ganados y Diferencia de Puntos</p>
+          <h2 style={{ ...styles.groupTitle, textAlign: 'center' }}>Tabla General · Fase 1</h2>
+          <p style={{ ...styles.faseInfo, textAlign: 'center', marginBottom: '15px' }}>Ordenado por partidos ganados y diferencia de puntos</p>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
@@ -557,8 +599,11 @@ const tablaGeneral = [...data.posiciones]
                   return (
                     <tr key={pos.pareja_id} style={esClasificado ? styles.rowQualified : styles.rowStandard}>
                       <td style={styles.tdCenter}><strong>{idx + 1}</strong></td>
-                      <td style={styles.tdMain}>{pos.nombre_pareja}</td>
-                      <td style={styles.tdCenter}><span style={styles.badgeGrupo}>{pos.nombre_grupo.replace('GRUPO ', 'G')}</span></td>
+                      <td style={styles.tdMain}>
+                        {pos.nombre_pareja}
+                        {pos.cabeza_serie === 1 && <span style={styles.estrella} title="Cabeza de serie">★</span>}
+                      </td>
+                      <td style={styles.tdCenter}><span style={styles.badgeGrupo}>{pos.nombre_grupo.replace('GRUPO ', '')}</span></td>
                       <td style={styles.tdCenter}>{pos.pg}</td>
                       <td style={styles.tdBold}>{pos.diferencia_puntos}</td>
                     </tr>
@@ -574,15 +619,15 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'cuartos_fase' && (
         <div style={styles.finalPhaseSection}>
           {!fase1Terminada ? (
-            <div style={styles.lockedPhase}>🔒 Completa la totalidad de los partidos de la Fase 1 para habilitar el Sorteo de Grupos de Cuartos.</div>
+            <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 1 para habilitar el sorteo de la Fase 2.</div>
           ) : (
             <>
-              <div style={{ ...styles.groupCard, backgroundColor: '#f0fff4', border: '1px solid #c6f6d5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={styles.sorteoCard}>
                 <div>
-                  <h3 style={{ margin: 0, fontWeight: '700', color: '#22543d' }}>Sorteo de Cuartos de Final</h3>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#2f855a' }}>Distribuye las 8 parejas en 2 nuevos grupos de forma aleatoria.</p>
+                  <h3 style={styles.sorteoTitulo}>Sorteo de la Fase 2</h3>
+                  <p style={styles.sorteoTexto}>Reparte al azar las 8 parejas clasificadas en 2 series de 4. Todos contra todos; pasan los 2 mejores de cada serie.</p>
                 </div>
-                <button onClick={() => sortearFaseCuartos(partidosCuartos, clasificadosFase1)} style={styles.btnSorteo}>🎲 Ejecutar Sorteo</button>
+                <button onClick={() => sortearFaseCuartos(partidosCuartos, clasificadosFase1)} style={styles.btnSorteo}>🎲 Sortear</button>
               </div>
 
               {gruposCuartos.length > 0 && (
@@ -591,16 +636,15 @@ const tablaGeneral = [...data.posiciones]
                     grupos={gruposCuartos}
                     grupoActivo={grupoActivoCuartos}
                     onSelect={setSubTabCuartos}
-                    colorActivo="#2b6cb0"
                   />
                   {(() => {
                     const partidosDelGrupo = partidosCuartos.filter(p => p.nombre_grupo === grupoActivoCuartos);
                     return (
                       <section style={styles.groupCard}>
-                        <h2 style={{ ...styles.groupTitle, color: '#2b6cb0' }}>{grupoActivoCuartos}</h2>
+                        <h2 style={styles.groupTitle}>{grupoActivoCuartos}</h2>
                         <TablaPosicionesGrupo nombreGrupo={grupoActivoCuartos} limiteClasificacion={2} />
                         <div style={styles.divider} />
-                        <p style={styles.seccionLabel}>Partidos de Grupo</p>
+                        <p style={styles.seccionLabel}>Partidos de la serie</p>
                         <div style={styles.matchesGrid}>
                           {partidosDelGrupo.map((p, i) => renderMatchCard(p, clasificadosFase1, `Partido ${i + 1}`, false))}
                         </div>
@@ -618,13 +662,13 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'semifinal' && (
         <div style={styles.finalPhaseSection}>
           {!cuartosTerminado ? (
-            <div style={styles.lockedPhase}>🔒 Completa todos los partidos de Cuartos para habilitar la Semifinal.</div>
+            <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 2 para habilitar la Semifinal.</div>
           ) : (
-            <section style={{ ...styles.groupCard, border: '2px solid #bee3f8' }}>
-              <h2 style={{ ...styles.groupTitle, color: '#2b6cb0', textAlign: 'center', marginBottom: '4px' }}>
-                🥊 Semifinal
+            <section style={{ ...styles.groupCard, borderColor: C.limaBorde }}>
+              <h2 style={{ ...styles.groupTitle, textAlign: 'center', marginBottom: '4px' }}>
+                Semifinal
               </h2>
-              <p style={{ ...styles.faseInfo, textAlign: 'center' }}>Los 2 mejores de cada grupo de Cuartos se cruzan</p>
+              <p style={{ ...styles.faseInfo, textAlign: 'center' }}>1° de una serie contra el 2° de la otra · Set único a {PUNTOS_SET}</p>
 
               {/* Cuadro de clasificados */}
               {clasificadosCuartos.length >= 4 && (
@@ -632,13 +676,13 @@ const tablaGeneral = [...data.posiciones]
                   <div style={styles.semiBracketCol}>
                     <span style={styles.semiBracketLabel}>Semifinal 1</span>
                     <div style={styles.semiBracketRow}>
-                      <span style={styles.semiBracketBadge}>1° {gruposCuartos[0] || 'G1'}</span>
+                      <span style={styles.semiBracketBadge}>1° {gruposCuartos[0] || 'Serie 1'}</span>
                       <span style={styles.semiBracketNombre}>{clasificadosCuartos[0].nombre}</span>
                     </div>
                     <div style={styles.semiBracketVs}>vs</div>
                     <div style={styles.semiBracketRow}>
-                      <span style={{ ...styles.semiBracketBadge, backgroundColor: '#ebf8ff', color: '#2b6cb0' }}>
-                        2° {gruposCuartos[1] || 'G2'}
+                      <span style={styles.semiBracketBadge2}>
+                        2° {gruposCuartos[1] || 'Serie 2'}
                       </span>
                       <span style={styles.semiBracketNombre}>{clasificadosCuartos[3].nombre}</span>
                     </div>
@@ -647,13 +691,13 @@ const tablaGeneral = [...data.posiciones]
                   <div style={styles.semiBracketCol}>
                     <span style={styles.semiBracketLabel}>Semifinal 2</span>
                     <div style={styles.semiBracketRow}>
-                      <span style={styles.semiBracketBadge}>1° {gruposCuartos[1] || 'G2'}</span>
+                      <span style={styles.semiBracketBadge}>1° {gruposCuartos[1] || 'Serie 2'}</span>
                       <span style={styles.semiBracketNombre}>{clasificadosCuartos[2].nombre}</span>
                     </div>
                     <div style={styles.semiBracketVs}>vs</div>
                     <div style={styles.semiBracketRow}>
-                      <span style={{ ...styles.semiBracketBadge, backgroundColor: '#ebf8ff', color: '#2b6cb0' }}>
-                        2° {gruposCuartos[0] || 'G1'}
+                      <span style={styles.semiBracketBadge2}>
+                        2° {gruposCuartos[0] || 'Serie 1'}
                       </span>
                       <span style={styles.semiBracketNombre}>{clasificadosCuartos[1].nombre}</span>
                     </div>
@@ -704,11 +748,11 @@ const tablaGeneral = [...data.posiciones]
           {!semifinalTerminado ? (
             <div style={styles.lockedPhase}>🔒 Completa los partidos de Semifinal para habilitar la Gran Final.</div>
           ) : (
-            <section style={{ ...styles.groupCard, border: '2px solid #ecc94b', overflow: 'hidden' }}>
-              <h2 style={{ ...styles.groupTitle, color: '#b7791f', textAlign: 'center', marginBottom: '4px' }}>
-                🏆 LA GRAN FINAL 🏆
+            <section style={{ ...styles.groupCard, border: `2px solid ${C.oro}`, overflow: 'hidden' }}>
+              <h2 style={{ ...styles.groupTitle, color: C.oro, textAlign: 'center', marginBottom: '4px' }}>
+                🏆 La Gran Final
               </h2>
-              <p style={{ ...styles.faseInfo, textAlign: 'center' }}>Ganadores de Semifinal 1 vs Semifinal 2 · Set único a 21 puntos</p>
+              <p style={{ ...styles.faseInfo, textAlign: 'center' }}>Ganadores de Semifinal 1 vs Semifinal 2 · Set único a {PUNTOS_SET} puntos</p>
 
               {/* No existe el partido final aún → crearlo automáticamente */}
               {!partidoFinal && clasificadosFinal.length >= 2 && (
@@ -767,106 +811,171 @@ const tablaGeneral = [...data.posiciones]
           )}
         </div>
       )}
+
+      {/* ── REGLAS ── */}
+      {tab === 'reglas' && (
+        <section style={styles.groupCard}>
+          <h2 style={styles.groupTitle}>Formato y reglas</h2>
+          <ol style={styles.reglasLista}>
+            {[
+              ['Fase 1 · Grupos', '4 grupos de 4 parejas, con una cabeza de serie (★) por grupo. Todos contra todos. Clasifican las 2 mejores de cada grupo: 8 parejas.'],
+              ['Fase 2 · Series', 'Las 8 clasificadas se sortean al azar en 2 series de 4. Todos contra todos. Clasifican las 2 mejores de cada serie.'],
+              ['Semifinal', '1° de la Serie 1 vs 2° de la Serie 2, y 1° de la Serie 2 vs 2° de la Serie 1.'],
+              ['Final', 'Los ganadores de cada semifinal juegan por el campeonato.'],
+            ].map(([titulo, texto]) => (
+              <li key={titulo} style={styles.reglaItem}>
+                <strong style={styles.reglaTitulo}>{titulo}</strong>
+                <span>{texto}</span>
+              </li>
+            ))}
+          </ol>
+          <div style={styles.divider} />
+          <p style={styles.seccionLabel}>Puntuación y desempate</p>
+          <ul style={styles.reglasPuntos}>
+            <li>Todos los partidos se juegan a <strong style={{ color: C.lima }}>1 set de {PUNTOS_SET} puntos</strong>.</li>
+            <li>En grupos y series se ordena por <strong>partidos ganados (PG)</strong>.</li>
+            <li>Si hay empate en PG, decide la <strong>diferencia de puntos (Dif)</strong>: puntos a favor menos puntos en contra.</li>
+          </ul>
+        </section>
+      )}
+
+      <footer style={styles.footer}>
+        <img src="/brand/ranked-mark.png" alt="" style={{ width: '18px', height: 'auto' }} />
+        <span>Powered by Ranked</span>
+      </footer>
     </div>
   );
 }
 
+const titulo = { fontFamily: FUENTE_TITULO, fontStyle: 'italic', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' };
+const boton = { border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' };
+const badgeCirculo = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' };
+
 const styles = {
-  loading: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1.2rem' },
-  container: { fontFamily: 'system-ui', maxWidth: '800px', margin: '0 auto', padding: '15px', backgroundColor: '#f4f6f8', minHeight: '100vh' },
-  header: { textAlign: 'center', marginBottom: '15px' },
-  title: { margin: '0 0 5px 0', color: '#1a202c', fontSize: '1.6rem' },
-  subtitle: { margin: 0, color: '#718096' },
-  tabsContainer: { display: 'flex', backgroundColor: '#e2e8f0', borderRadius: '8px', padding: '4px', marginBottom: '20px' },
-  tab: { flex: 1, padding: '10px 5px', textAlign: 'center', border: 'none', background: 'transparent', color: '#4a5568', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', transition: '0.2s', fontSize: '0.78rem' },
-  tabActive: { flex: 1, padding: '10px 5px', textAlign: 'center', border: 'none', background: '#fff', color: '#2b6cb0', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', fontSize: '0.78rem' },
+  loading: { display: 'flex', flexDirection: 'column', gap: '14px', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1rem', color: C.suave, backgroundColor: C.navy },
+  container: { maxWidth: '820px', margin: '0 auto', padding: '16px', backgroundColor: C.navy, color: C.texto, minHeight: '100vh', boxSizing: 'border-box' },
+
+  // ── Cabecera ──
+  header: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '18px 0 20px', marginBottom: '16px', borderBottom: `1px solid ${C.borde}` },
+  logo: { width: 'min(220px, 60vw)', height: 'auto' },
+  headerTexto: { textAlign: 'center' },
+  title: { ...titulo, margin: 0, color: C.texto, fontSize: '1.9rem', lineHeight: 1.05 },
+  subtitle: { margin: '4px 0 0', color: C.lima, fontSize: '0.85rem', fontWeight: '600', letterSpacing: '0.5px' },
+
+  // ── Pestañas ──
+  tabsContainer: { display: 'flex', gap: '4px', backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '10px', padding: '4px', marginBottom: '18px', overflowX: 'auto' },
+  tab: { ...titulo, fontWeight: '700', flex: '1 0 auto', padding: '10px 12px', textAlign: 'center', border: 'none', background: 'transparent', color: C.suave, borderRadius: '7px', cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap' },
+  tabActive: { ...titulo, fontWeight: '800', flex: '1 0 auto', padding: '10px 12px', textAlign: 'center', border: 'none', background: C.lima, color: C.navy, borderRadius: '7px', cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap' },
 
   // ── Sub-pestañas ──
   subTabsContainer: { display: 'flex', gap: '8px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '2px' },
-  subTabBase: { flex: '1 1 0', minWidth: '80px', padding: '9px 12px', textAlign: 'center', border: '1.5px solid #e2e8f0', background: '#fff', color: '#718096', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap', transition: 'all 0.15s' },
-  subTabActive: { background: '#faf5ff', borderColor: '#6b46c1', color: '#6b46c1', boxShadow: '0 1px 4px rgba(107,70,193,0.15)' },
+  subTabBase: { ...titulo, fontWeight: '700', flex: '1 1 0', minWidth: '84px', padding: '9px 12px', textAlign: 'center', border: `1.5px solid ${C.borde}`, background: C.card, color: C.suave, borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' },
+  subTabActive: { background: C.limaFondo },
 
-  headerFlex: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px', borderBottom: '2px solid #edf2f7', paddingBottom: '10px' },
-  groupCard: { backgroundColor: '#fff', borderRadius: '12px', padding: '15px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  groupTitle: { margin: '0 0 12px 0', color: '#2d3748', fontSize: '1.2rem', fontWeight: '700' },
-  divider: { height: '1px', backgroundColor: '#edf2f7', margin: '16px 0' },
-  seccionLabel: { fontSize: '0.8rem', fontWeight: '700', color: '#718096', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 10px 0' },
-  faseInfo: { fontSize: '0.8rem', color: '#718096', margin: '0 0 12px 0' },
-  tablaPosWrapper: { backgroundColor: '#f8fafc', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' },
-  tablaPosHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#edf2f7' },
-  tablaPosTitle: { fontSize: '0.78rem', fontWeight: '700', color: '#4a5568', textTransform: 'uppercase', letterSpacing: '1px' },
-  tablaPosLegend: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: '#718096' },
-  legendDot: { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38a169', display: 'inline-block' },
-  tablaPos: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' },
-  tablaPosHead: { backgroundColor: '#edf2f7' },
-  thPos: { padding: '6px 8px', textAlign: 'center', color: '#718096', fontSize: '0.75rem', fontWeight: '600' },
-  thPosLeft: { padding: '6px 8px', textAlign: 'left', color: '#718096', fontSize: '0.75rem', fontWeight: '600' },
-  rowClasifica: { borderBottom: '1px solid #c6f6d5', backgroundColor: '#f0fff4' },
-  rowNormal: { borderBottom: '1px solid #edf2f7', backgroundColor: '#fff' },
-  tdPos: { padding: '8px', textAlign: 'center', color: '#2d3748' },
-  tdPosNombre: { padding: '8px', textAlign: 'left', color: '#2d3748', fontWeight: '500' },
-  badgeClasifica: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#38a169', color: '#fff', fontSize: '0.75rem', fontWeight: '700' },
-  badgeNormal: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#e2e8f0', color: '#718096', fontSize: '0.75rem', fontWeight: '600' },
+  // ── Tarjetas y secciones ──
+  groupCard: { backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '14px', padding: '16px', marginBottom: '20px' },
+  groupTitle: { ...titulo, margin: '0 0 12px 0', color: C.texto, fontSize: '1.45rem' },
+  divider: { height: '1px', backgroundColor: C.borde, margin: '16px 0' },
+  seccionLabel: { fontSize: '0.75rem', fontWeight: '700', color: C.suave, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '0 0 10px 0' },
+  faseInfo: { fontSize: '0.85rem', color: C.suave, margin: '0 0 12px 0' },
+  estrella: { color: C.lima, marginLeft: '6px', fontSize: '0.85rem' },
+
+  // ── Tabla de posiciones por grupo ──
+  tablaPosWrapper: { backgroundColor: C.card2, borderRadius: '10px', overflow: 'hidden', border: `1px solid ${C.borde}` },
+  tablaPosHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.borde}` },
+  tablaPosTitle: { fontSize: '0.75rem', fontWeight: '700', color: C.suave, textTransform: 'uppercase', letterSpacing: '1.5px' },
+  tablaPosLegend: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: C.suave },
+  legendDot: { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: C.lima, display: 'inline-block' },
+  tablaPos: { width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' },
+  tablaPosHead: {},
+  thPos: { padding: '8px 6px', textAlign: 'center', color: C.tenue, fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.5px' },
+  thPosLeft: { padding: '8px 6px', textAlign: 'left', color: C.tenue, fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.5px' },
+  rowClasifica: { borderTop: `1px solid ${C.borde}`, backgroundColor: C.limaFondo },
+  rowNormal: { borderTop: `1px solid ${C.borde}` },
+  tdPos: { padding: '9px 6px', textAlign: 'center', color: C.texto, fontVariantNumeric: 'tabular-nums' },
+  tdPosNombre: { padding: '9px 6px', textAlign: 'left', color: C.texto, fontWeight: '600' },
+  badgeClasifica: { ...badgeCirculo, backgroundColor: C.lima, color: C.navy },
+  badgeNormal: { ...badgeCirculo, backgroundColor: C.borde, color: C.suave },
+
+  // ── Tabla general ──
   tableWrapper: { overflowX: 'auto', marginBottom: '10px' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' },
-  th: { padding: '8px', color: '#4a5568', borderBottom: '2px solid #e2e8f0' },
-  thCenter: { padding: '8px', textAlign: 'center', color: '#4a5568', borderBottom: '2px solid #e2e8f0' },
-  rowStandard: { borderBottom: '1px solid #edf2f7' },
-  rowQualified: { borderBottom: '1px solid #edf2f7', backgroundColor: '#f0fff4' },
-  tdMain: { padding: '8px', fontWeight: '500', color: '#2d3748' },
-  tdCenter: { padding: '8px', textAlign: 'center' },
-  tdBold: { padding: '8px', textAlign: 'center', fontWeight: '700' },
-  badgeGrupo: { backgroundColor: '#edf2f7', color: '#4a5568', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' },
-  matchesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' },
-  matchCard: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', backgroundColor: '#faf5ff' },
-  matchCardPlayed: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', backgroundColor: '#f7fafc', opacity: 0.9 },
-  matchTitle: { margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096' },
+  th: { padding: '8px', color: C.tenue, fontSize: '0.75rem', borderBottom: `1px solid ${C.borde}` },
+  thCenter: { padding: '8px', textAlign: 'center', color: C.tenue, fontSize: '0.75rem', borderBottom: `1px solid ${C.borde}` },
+  rowStandard: { borderBottom: `1px solid ${C.borde}` },
+  rowQualified: { borderBottom: `1px solid ${C.borde}`, backgroundColor: C.limaFondo },
+  tdMain: { padding: '9px 8px', fontWeight: '600', color: C.texto },
+  tdCenter: { padding: '9px 8px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' },
+  tdBold: { padding: '9px 8px', textAlign: 'center', fontWeight: '700', fontVariantNumeric: 'tabular-nums' },
+  badgeGrupo: { ...titulo, backgroundColor: C.borde, color: C.texto, padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' },
+
+  // ── Partidos ──
+  matchesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' },
+  matchCard: { border: `1px solid ${C.borde}`, borderRadius: '12px', padding: '12px', backgroundColor: C.card2 },
+  matchCardPlayed: { border: `1px solid ${C.borde}`, borderRadius: '12px', padding: '12px', backgroundColor: C.card },
+  matchTitle: { ...titulo, fontWeight: '700', margin: '0 0 10px 0', fontSize: '0.9rem', color: C.suave },
   matchTeams: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' },
-  teamLine: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' },
-  scoreInput: { width: '50px', padding: '6px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px' },
-  select: { width: '100%', padding: '8px', marginBottom: '8px', border: '1px solid #cbd5e0', borderRadius: '4px', fontSize: '0.9rem' },
-  btnAssign: { width: '100%', padding: '10px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' },
-  btnWarning: { flex: 1, padding: '8px', backgroundColor: '#fffaf0', color: '#dd6b20', border: '1px solid #fbd38d', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' },
-  btnSave: { flex: 2, padding: '8px', backgroundColor: '#6b46c1', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
-  btnUpdate: { flex: 1, padding: '8px', backgroundColor: '#edf2f7', color: '#4a5568', border: '1px solid #cbd5e0', borderRadius: '6px', cursor: 'pointer' },
-  btnReset: { flex: 1, padding: '8px', backgroundColor: '#fed7d7', color: '#c53030', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  btnSorteo: { padding: '8px 16px', backgroundColor: '#38a169', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' },
-  btnResetFase: { padding: '8px 20px', backgroundColor: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', fontSize: '0.8rem' },
+  teamLine: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontSize: '0.92rem', borderRadius: '8px', padding: '4px 6px' },
+  scoreInput: { width: '54px', padding: '7px 4px', textAlign: 'center', border: `1.5px solid ${C.borde}`, borderRadius: '8px', backgroundColor: C.navy, color: C.texto, fontSize: '1.05rem', fontWeight: '700', fontFamily: 'inherit' },
+  select: { width: '100%', padding: '9px', marginBottom: '8px', border: `1px solid ${C.borde}`, borderRadius: '8px', fontSize: '0.9rem', backgroundColor: C.navy, color: C.texto, fontFamily: 'inherit' },
+
+  // ── Botones ──
+  btnAssign: { ...boton, width: '100%', padding: '11px', backgroundColor: C.lima, color: C.navy, marginTop: '10px' },
+  btnSave: { ...boton, flex: 2, padding: '9px', backgroundColor: C.lima, color: C.navy },
+  btnWarning: { ...boton, flex: 1, padding: '9px', backgroundColor: C.ambarFondo, color: C.ambar, border: `1px solid ${C.ambar}`, fontSize: '0.8rem' },
+  btnUpdate: { ...boton, flex: 1, padding: '9px', backgroundColor: 'transparent', color: C.texto, border: `1px solid ${C.borde}`, fontWeight: '600' },
+  btnReset: { ...boton, flex: 1, padding: '9px', backgroundColor: C.rojoFondo, color: C.rojo, fontWeight: '600' },
+  btnSorteo: { ...boton, padding: '10px 18px', backgroundColor: C.lima, color: C.navy, fontSize: '0.9rem', whiteSpace: 'nowrap' },
+  btnResetFase: { ...boton, padding: '9px 20px', backgroundColor: 'transparent', color: C.rojo, border: `1px solid ${C.rojo}`, fontWeight: '600', fontSize: '0.8rem' },
+
+  // ── Fases ──
   finalPhaseSection: {},
-  lockedPhase: { textAlign: 'center', padding: '20px', backgroundColor: '#edf2f7', borderRadius: '8px', color: '#718096', fontWeight: '500', marginTop: '20px' },
+  lockedPhase: { textAlign: 'center', padding: '22px', backgroundColor: C.card, border: `1px dashed ${C.borde}`, borderRadius: '12px', color: C.suave, fontWeight: '500', marginTop: '8px' },
+  sorteoCard: { display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.limaFondo, border: `1px solid ${C.limaBorde}`, borderRadius: '14px', padding: '16px', marginBottom: '20px' },
+  sorteoTitulo: { ...titulo, margin: 0, color: C.lima, fontSize: '1.2rem' },
+  sorteoTexto: { margin: '4px 0 0', fontSize: '0.85rem', color: C.suave, maxWidth: '460px' },
 
   // ── Cuadro de semifinal ──
-  semiBracketCard: { display: 'flex', gap: '12px', backgroundColor: '#ebf8ff', border: '1px solid #bee3f8', borderRadius: '10px', padding: '14px', marginBottom: '16px' },
+  semiBracketCard: { display: 'flex', gap: '12px', backgroundColor: C.card2, border: `1px solid ${C.borde}`, borderRadius: '12px', padding: '14px', marginBottom: '16px' },
   semiBracketCol: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
-  semiBracketLabel: { fontSize: '0.72rem', fontWeight: '800', color: '#2b6cb0', textTransform: 'uppercase', letterSpacing: '1px' },
+  semiBracketLabel: { ...titulo, fontSize: '0.85rem', color: C.lima },
   semiBracketRow: { display: 'flex', alignItems: 'center', gap: '6px' },
-  semiBracketBadge: { flexShrink: 0, fontSize: '0.65rem', fontWeight: '700', backgroundColor: '#c3dafe', color: '#3730a3', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' },
-  semiBracketNombre: { fontSize: '0.82rem', fontWeight: '600', color: '#1a365d' },
-  semiBracketVs: { fontSize: '0.7rem', fontWeight: '700', color: '#718096', textAlign: 'center', margin: '1px 0' },
-  semiBracketDivisor: { width: '1px', backgroundColor: '#bee3f8', borderRadius: '4px' },
+  semiBracketBadge: { flexShrink: 0, fontSize: '0.65rem', fontWeight: '700', backgroundColor: C.lima, color: C.navy, padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' },
+  semiBracketBadge2: { flexShrink: 0, fontSize: '0.65rem', fontWeight: '700', backgroundColor: C.borde, color: C.texto, padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' },
+  semiBracketNombre: { fontSize: '0.85rem', fontWeight: '600', color: C.texto },
+  semiBracketVs: { fontSize: '0.7rem', fontWeight: '700', color: C.tenue, textAlign: 'center', margin: '1px 0' },
+  semiBracketDivisor: { width: '1px', backgroundColor: C.borde, borderRadius: '4px' },
 
-  semiDbWarning: { backgroundColor: '#fffbeb', border: '1px solid #f6e05e', borderRadius: '8px', padding: '12px 14px', color: '#744210', fontSize: '0.85rem', marginBottom: '16px', lineHeight: 1.5 },
-  podioWrapper: { background: 'linear-gradient(135deg, #fffbea 0%, #fef3c7 50%, #fde68a 100%)', border: '2px solid #f6c000', borderRadius: '16px', padding: '20px 16px', boxShadow: '0 4px 20px rgba(246,192,0,0.3)' },
+  // ── Podio del campeón ──
+  podioWrapper: { background: `linear-gradient(145deg, ${C.card2} 0%, #1f2437 55%, #2a2a1c 100%)`, border: `2px solid ${C.oro}`, borderRadius: '16px', padding: '20px 16px', boxShadow: '0 6px 24px rgba(245,197,66,0.18)' },
   podioDestellos: { display: 'flex', justifyContent: 'space-around', marginBottom: '10px' },
   destello: { fontSize: '1.4rem' },
   podioCuerpo: { display: 'flex', gap: '16px', alignItems: 'stretch' },
   podioIzq: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' },
   podioCorona: { fontSize: '2.8rem', lineHeight: 1, marginBottom: '2px' },
-  podioBadge: { backgroundColor: '#b7791f', color: '#fff', fontSize: '0.65rem', fontWeight: '800', letterSpacing: '2px', padding: '3px 10px', borderRadius: '20px' },
-  podioNombre: { margin: '6px 0 2px 0', fontSize: '1.15rem', fontWeight: '800', color: '#744210', textAlign: 'center', lineHeight: 1.2 },
-  podioMarcador: { display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' },
-  podioScore: { fontSize: '2rem', fontWeight: '900', color: '#276749' },
-  podioSeparador: { fontSize: '1.2rem', color: '#718096', fontWeight: '300' },
-  podioScoreSub: { fontSize: '1.5rem', fontWeight: '700', color: '#e53e3e' },
-  podioSegundo: { fontSize: '0.75rem', color: '#718096', margin: '2px 0 0 0', textAlign: 'center' },
-  podioDivisor: { width: '1px', backgroundColor: '#f6c000', opacity: 0.5, borderRadius: '4px', minHeight: '120px' },
+  podioBadge: { backgroundColor: C.oro, color: C.navy, fontSize: '0.65rem', fontWeight: '800', letterSpacing: '2px', padding: '3px 10px', borderRadius: '20px' },
+  podioNombre: { ...titulo, margin: '6px 0 2px 0', fontSize: '1.4rem', color: C.texto, textAlign: 'center', lineHeight: 1.1 },
+  podioMarcador: { display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px', fontFamily: FUENTE_TITULO },
+  podioScore: { fontSize: '2.2rem', fontWeight: '800', color: C.lima },
+  podioSeparador: { fontSize: '1.2rem', color: C.tenue, fontWeight: '300' },
+  podioScoreSub: { fontSize: '1.6rem', fontWeight: '700', color: C.suave },
+  podioSegundo: { fontSize: '0.78rem', color: C.suave, margin: '2px 0 0 0', textAlign: 'center' },
+  podioDivisor: { width: '1px', backgroundColor: C.oro, opacity: 0.4, borderRadius: '4px', minHeight: '120px' },
   podioDer: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' },
   fotoContainer: { position: 'relative', width: '100%', maxWidth: '160px' },
-  fotoGanador: { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '12px', border: '3px solid #f6c000', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'block' },
-  btnEliminarFoto: { position: 'absolute', top: '-8px', right: '-8px', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#e53e3e', color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', padding: 0 },
-  fotoPlaceholder: { width: '100%', maxWidth: '160px', aspectRatio: '1', border: '2px dashed #c9a227', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', padding: '10px', boxSizing: 'border-box' },
+  fotoGanador: { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '12px', border: `3px solid ${C.oro}`, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', display: 'block' },
+  btnEliminarFoto: { position: 'absolute', top: '-8px', right: '-8px', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: C.rojo, color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.3)', padding: 0 },
+  fotoPlaceholder: { width: '100%', maxWidth: '160px', aspectRatio: '1', border: `2px dashed ${C.oro}`, borderRadius: '12px', backgroundColor: 'rgba(245,197,66,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', padding: '10px', boxSizing: 'border-box' },
   fotoIcono: { fontSize: '2rem', lineHeight: 1 },
-  fotoTexto: { fontSize: '0.7rem', color: '#92703a', textAlign: 'center', lineHeight: 1.3 },
-  btnCambiarFoto: { padding: '6px 14px', backgroundColor: 'rgba(255,255,255,0.8)', color: '#744210', border: '1px solid #c9a227', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' },
-  podioTrofeo: { textAlign: 'center', fontSize: '0.85rem', fontWeight: '700', color: '#b7791f', marginTop: '16px', letterSpacing: '0.5px' },
+  fotoTexto: { fontSize: '0.72rem', color: C.suave, textAlign: 'center', lineHeight: 1.3 },
+  btnCambiarFoto: { ...boton, padding: '6px 14px', backgroundColor: 'transparent', color: C.oro, border: `1px solid ${C.oro}`, borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600' },
+  podioTrofeo: { ...titulo, textAlign: 'center', fontSize: '1rem', color: C.oro, marginTop: '16px' },
+
+  // ── Reglas ──
+  reglasLista: { margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '12px' },
+  reglaItem: { color: C.suave, fontSize: '0.92rem', lineHeight: 1.45, paddingLeft: '4px' },
+  reglaTitulo: { ...titulo, display: 'block', color: C.lima, fontSize: '1.05rem' },
+  reglasPuntos: { margin: 0, paddingLeft: '20px', color: C.suave, fontSize: '0.92rem', lineHeight: 1.6 },
+
+  footer: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '24px 0 8px', color: C.tenue, fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' },
 };
