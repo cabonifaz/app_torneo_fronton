@@ -4,7 +4,9 @@ import { suscribir } from '../../../../lib/torneo-en-vivo';
 
 export const dynamic = 'force-dynamic';
 
-const LATIDO_MS = 20000; // evita que proxies cierren la conexión por inactividad
+// Evita que proxies cierren la conexión por inactividad y permite al cliente detectar conexiones muertas.
+// Es un evento con nombre (no un comentario SSE) para que el navegador lo reciba en JavaScript.
+const LATIDO_MS = 10000;
 
 export async function GET(request) {
   const codificador = new TextEncoder();
@@ -19,7 +21,7 @@ export async function GET(request) {
       escribir('retry: 3000\n\n');
 
       let desuscribir = () => {};
-      const latido = setInterval(() => escribir(': latido\n\n'), LATIDO_MS);
+      const latido = setInterval(() => escribir('event: latido\ndata: {}\n\n'), LATIDO_MS);
       cancelar = () => {
         clearInterval(latido);
         desuscribir();

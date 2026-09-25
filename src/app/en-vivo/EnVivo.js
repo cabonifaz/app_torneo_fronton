@@ -11,6 +11,8 @@ const PESTANAS = [
   ['llaves', 'Llaves'],
 ];
 const DURACION_DESTELLO_MS = 4000;
+// El servidor manda un latido cada 10 s; sin noticias en este tiempo la conexión se da por muerta
+const SILENCIO_MAXIMO_MS = 25000;
 
 // Firma de lo que el público ve de un partido: si cambia, el partido "destella"
 const firma = p => `${p.pareja1_id}|${p.pareja2_id}|${p.puntos_pareja1}|${p.puntos_pareja2}|${p.jugado}`;
@@ -26,11 +28,29 @@ export default function EnVivo() {
   useEffect(() => {
     let fuente;
     let reintento;
+    let ultimoMensaje = Date.now();
+
+    // Vigilante: una conexión puede quedar "zombi" (servidor reiniciado, móvil que cambia de red)
+    // sin que EventSource lo note. Si no llega nada en SILENCIO_MAXIMO_MS, se reconecta a mano.
+    const reconectarSiSilencio = () => {
+      if (Date.now() - ultimoMensaje > SILENCIO_MAXIMO_MS) {
+        setConexion('reconectando');
+        clearTimeout(reintento);
+        fuente?.close();
+        conectar();
+      }
+    };
+    const vigilante = setInterval(reconectarSiSilencio, 5000);
+    const alVolverVisible = () => { if (document.visibilityState === 'visible') reconectarSiSilencio(); };
+    document.addEventListener('visibilitychange', alVolverVisible);
 
     const conectar = () => {
+      ultimoMensaje = Date.now();
       fuente = new EventSource('/api/torneo/stream');
       fuente.onopen = () => setConexion('en-vivo');
+      fuente.addEventListener('latido', () => { ultimoMensaje = Date.now(); });
       fuente.addEventListener('torneo', (evento) => {
+        ultimoMensaje = Date.now();
         const nuevo = JSON.parse(evento.data);
         const cambiados = [];
         for (const p of nuevo.partidos) {
@@ -59,6 +79,8 @@ export default function EnVivo() {
     conectar();
     return () => {
       fuente?.close();
+      clearInterval(vigilante);
+      document.removeEventListener('visibilitychange', alVolverVisible);
       clearTimeout(reintento);
       clearTimeout(temporizadorDestello.current);
     };

@@ -3,7 +3,8 @@ import pool from './db';
 // Estado completo del torneo: lo usan la API de administración y la transmisión en vivo
 export async function obtenerDatosTorneo() {
   const [[posiciones], [partidos], [[torneo]]] = await Promise.all([
-    pool.query('SELECT * FROM vista_posiciones'),
+    // Orden explícito: la vista no garantiza orden y la transmisión en vivo compara por hash
+    pool.query('SELECT * FROM vista_posiciones ORDER BY nombre_grupo, pareja_id'),
     pool.query(`
       SELECT
         p.id, p.grupo_id, g.nombre AS nombre_grupo, g.cancha, g.hora_inicio,
