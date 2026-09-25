@@ -523,6 +523,7 @@ const tablaGeneral = [...data.posiciones]
           <h1 style={styles.title}>{data.torneo?.nombre || 'Torneo de Frontón'}</h1>
           {data.torneo?.subtitulo && <p style={styles.subtitle}>{data.torneo.subtitulo}</p>}
         </div>
+        <a href="/en-vivo" target="_blank" rel="noopener" style={styles.linkPublico}>● Ver vista pública en vivo</a>
       </header>
 
       <nav className="tabs-scroll" style={styles.tabsContainer}>
@@ -840,8 +841,7 @@ const tablaGeneral = [...data.posiciones]
       )}
 
       <footer style={styles.footer}>
-        <img src="/brand/ranked-mark.png" alt="" style={{ width: '18px', height: 'auto' }} />
-        <span>Powered by Ranked</span>
+        <span>Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener" style={styles.footerLink}>Geeky Tech</a></span>
       </footer>
     </div>
   );
@@ -861,6 +861,7 @@ const styles = {
   headerTexto: { textAlign: 'center' },
   title: { ...titulo, margin: 0, color: C.texto, fontSize: '1.9rem', lineHeight: 1.05 },
   subtitle: { margin: '4px 0 0', color: C.lima, fontSize: '0.85rem', fontWeight: '600', letterSpacing: '0.5px' },
+  linkPublico: { padding: '6px 14px', border: `1px solid ${C.limaBorde}`, borderRadius: '999px', color: C.lima, fontSize: '0.75rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' },
 
   // ── Pestañas ──
   tabsContainer: { display: 'flex', gap: '4px', backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '10px', padding: '4px', marginBottom: '18px', overflowX: 'auto' },
@@ -978,4 +979,5 @@ const styles = {
   reglasPuntos: { margin: 0, paddingLeft: '20px', color: C.suave, fontSize: '0.92rem', lineHeight: 1.6 },
 
   footer: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '24px 0 8px', color: C.tenue, fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' },
+  footerLink: { color: C.suave, fontWeight: '700', textDecoration: 'none' },
 };
