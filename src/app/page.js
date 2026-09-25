@@ -81,7 +81,31 @@ export default function Torneo() {
     if (n1 < 0 || n2 < 0) return alert("Los puntajes no pueden ser negativos.");
     if (n1 === n2) return alert("No puede haber empate: el set se juega hasta que una pareja gane.");
     if (Math.max(n1, n2) < PUNTOS_SET && !confirm(`El set es a ${PUNTOS_SET} puntos y ninguna pareja llegó a ${PUNTOS_SET}. ¿Guardar igual?`)) return;
+    if (!confirmarCambioConSiguienteArmada(id)) return;
     accionPartido({ id, puntos_pareja1: n1, puntos_pareja2: n2 });
+  };
+
+  // Nombre de la fase siguiente si ya fue armada (sorteo hecho o partidos creados), o null
+  const faseSiguienteArmada = (fase) => {
+    if (fase === 'grupos' && data.partidos.some(p => p.fase === 'cuartos' && p.pareja1_id)) return 'Fase 2';
+    if (fase === 'cuartos' && data.partidos.some(p => p.fase === 'semifinal')) return 'Semifinal';
+    if (fase === 'semifinal' && data.partidos.some(p => p.fase === 'final')) return 'Final';
+    return null;
+  };
+
+  // Cambiar un resultado puede alterar la clasificación con la que se armó la fase siguiente
+  const confirmarCambioConSiguienteArmada = (id) => {
+    const partido = data.partidos.find(p => p.id === id);
+    const siguiente = partido && faseSiguienteArmada(partido.fase);
+    return !siguiente || confirm(
+      `La ${siguiente} ya está armada con la clasificación actual. Si este cambio altera quién clasifica, ` +
+      `tendrás que anular la ${siguiente} y volver a armarla. ¿Continuar?`
+    );
+  };
+
+  const anularSorteo = async () => {
+    if (!confirm('¿Anular el sorteo de la Fase 2? Se vaciarán las 2 series y se borrarán sus resultados.')) return;
+    await accionPartido({ vaciar_fase: 'cuartos' });
   };
 
   const asignarParejas = (id) => {
@@ -135,21 +159,9 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
 
       await Promise.all(promesas);
     } 
-    // ESCENARIO 2: Si el usuario ya fijó partidos a mano, el sorteo SOLO rellena los vacíos
+    // Con partidos asignados a medias no se puede sortear sin mezclar parejas de series distintas
     else {
-      const promesas = partidosVacios.map(p => {
-        const mezclados = [...clasificadosFase1].sort(() => Math.random() - 0.5);
-        return fetch('/api/partidos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: p.id,
-            pareja1_id: mezclados[0].id,
-            pareja2_id: mezclados[1].id
-          })
-        });
-      });
-      await Promise.all(promesas);
+      return alert("Hay partidos de la Fase 2 ya asignados. Usa \"Anular sorteo\" y vuelve a sortear, o completa los que faltan a mano.");
     }
     
     cargarDatos();
@@ -255,8 +267,18 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
   const gruposCuartos = [...new Set(partidosCuartos.map(p => p.nombre_grupo))];
 
   const fase1Terminada = partidosFase1.length > 0 && partidosFase1.every(p => p.jugado === 1);
-  const cuartosTerminado = partidosCuartos.length > 0 && partidosCuartos.every(p => p.jugado === 1);
-  const semifinalTerminado = partidosSemifinal.length > 0 && partidosSemifinal.every(p => p.jugado === 1);
+  // En cascada: una fase solo cuenta como terminada si la anterior también lo está
+  const cuartosTerminado = fase1Terminada && partidosCuartos.length > 0 && partidosCuartos.every(p => p.jugado === 1);
+  const semifinalTerminado = cuartosTerminado && partidosSemifinal.length > 0 && partidosSemifinal.every(p => p.jugado === 1);
+  const sorteoHecho = partidosCuartos.some(p => p.pareja1_id);
+
+  // Aviso para una fase que quedó armada aunque la anterior ya no está completa (p. ej. tras resetear resultados)
+  const avisoFaseHuerfana = (texto, etiquetaBoton, accion) => (
+    <div style={styles.avisoHuerfana}>
+      <p style={{ margin: 0 }}>⚠️ {texto}</p>
+      <button onClick={accion} style={styles.btnResetFase}>{etiquetaBoton}</button>
+    </div>
+  );
 
 const clasificadosFase1 = gruposFase1.flatMap(g =>
     data.posiciones
@@ -442,7 +464,7 @@ const tablaGeneral = [...data.posiciones]
         ) : (
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => guardarResultado(partido.id)} style={styles.btnUpdate}>Corregir</button>
-            <button onClick={() => accionPartido({ id: partido.id, reset: true })} style={styles.btnReset}>Reset</button>
+            <button onClick={() => confirmarCambioConSiguienteArmada(partido.id) && accionPartido({ id: partido.id, reset: true })} style={styles.btnReset}>Reset</button>
           </div>
         )}
       </div>
@@ -620,7 +642,14 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'cuartos_fase' && (
         <div style={styles.finalPhaseSection}>
           {!fase1Terminada ? (
-            <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 1 para habilitar el sorteo de la Fase 2.</div>
+            <>
+              <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 1 para habilitar el sorteo de la Fase 2.</div>
+              {sorteoHecho && avisoFaseHuerfana(
+                'Hay un sorteo de la Fase 2 hecho con una clasificación anterior, pero la Fase 1 ya no está completa. No es válido: anúlalo y vuelve a sortear al terminar la Fase 1.',
+                'Anular sorteo de la Fase 2',
+                anularSorteo,
+              )}
+            </>
           ) : (
             <>
               <div style={styles.sorteoCard}>
@@ -628,7 +657,10 @@ const tablaGeneral = [...data.posiciones]
                   <h3 style={styles.sorteoTitulo}>Sorteo de la Fase 2</h3>
                   <p style={styles.sorteoTexto}>Reparte al azar las 8 parejas clasificadas en 2 series de 4. Todos contra todos; pasan los 2 mejores de cada serie.</p>
                 </div>
-                <button onClick={() => sortearFaseCuartos(partidosCuartos, clasificadosFase1)} style={styles.btnSorteo}>🎲 Sortear</button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {sorteoHecho && <button onClick={anularSorteo} style={styles.btnResetFase}>Anular sorteo</button>}
+                  <button onClick={() => sortearFaseCuartos(partidosCuartos, clasificadosFase1)} style={styles.btnSorteo}>🎲 Sortear</button>
+                </div>
               </div>
 
               {gruposCuartos.length > 0 && (
@@ -663,7 +695,14 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'semifinal' && (
         <div style={styles.finalPhaseSection}>
           {!cuartosTerminado ? (
-            <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 2 para habilitar la Semifinal.</div>
+            <>
+              <div style={styles.lockedPhase}>🔒 Completa todos los partidos de la Fase 2 para habilitar la Semifinal.</div>
+              {partidosSemifinal.length > 0 && avisoFaseHuerfana(
+                'Hay partidos de Semifinal armados con una clasificación anterior, pero la Fase 2 ya no está completa. Resetéalos y vuelve a armar la Semifinal al terminar la Fase 2.',
+                'Resetear Semifinal',
+                () => resetearFase('semifinal'),
+              )}
+            </>
           ) : (
             <section style={{ ...styles.groupCard, borderColor: C.limaBorde }}>
               <h2 style={{ ...styles.groupTitle, textAlign: 'center', marginBottom: '4px' }}>
@@ -747,7 +786,14 @@ const tablaGeneral = [...data.posiciones]
       {tab === 'gran_final' && (
         <div style={styles.finalPhaseSection}>
           {!semifinalTerminado ? (
-            <div style={styles.lockedPhase}>🔒 Completa los partidos de Semifinal para habilitar la Gran Final.</div>
+            <>
+              <div style={styles.lockedPhase}>🔒 Completa los partidos de Semifinal para habilitar la Gran Final.</div>
+              {partidoFinal && avisoFaseHuerfana(
+                'Hay una Final armada con resultados anteriores, pero la Semifinal ya no está completa. Resetéala y vuelve a armarla al terminar la Semifinal.',
+                'Resetear Gran Final',
+                () => resetearFase('final'),
+              )}
+            </>
           ) : (
             <section style={{ ...styles.groupCard, border: `2px solid ${C.oro}`, overflow: 'hidden' }}>
               <h2 style={{ ...styles.groupTitle, color: C.oro, textAlign: 'center', marginBottom: '4px' }}>
@@ -932,6 +978,7 @@ const styles = {
   // ── Fases ──
   finalPhaseSection: {},
   lockedPhase: { textAlign: 'center', padding: '22px', backgroundColor: C.card, border: `1px dashed ${C.borde}`, borderRadius: '12px', color: C.suave, fontWeight: '500', marginTop: '8px' },
+  avisoHuerfana: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '12px', marginTop: '12px', padding: '14px 16px', backgroundColor: C.ambarFondo, border: `1px solid ${C.ambar}`, borderRadius: '12px', color: C.ambar, fontSize: '0.9rem', lineHeight: 1.45 },
   sorteoCard: { display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.limaFondo, border: `1px solid ${C.limaBorde}`, borderRadius: '14px', padding: '16px', marginBottom: '20px' },
   sorteoTitulo: { ...titulo, margin: 0, color: C.lima, fontSize: '1.2rem' },
   sorteoTexto: { margin: '4px 0 0', fontSize: '0.85rem', color: C.suave, maxWidth: '460px' },

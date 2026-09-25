@@ -292,8 +292,7 @@ function TarjetaGrupo({ datos, nombre, clasifican, recientes }) {
 }
 
 function Series({ datos, resumen, recientes }) {
-  const sorteado = datos.partidos.some(p => p.fase === 'cuartos' && p.pareja1_id);
-  if (sorteado) {
+  if (resumen.sorteoValido) {
     return (
       <div className={s.gridGrupos}>
         {resumen.series.map(g => <TarjetaGrupo key={g} datos={datos} nombre={g} clasifican={2} recientes={recientes} />)}
@@ -308,6 +307,7 @@ function Series({ datos, resumen, recientes }) {
           ? 'Fase 1 terminada. Pronto se sortearán las 8 parejas en 2 series de 4.'
           : 'Provisional: clasifican los 2 primeros de cada grupo. Al terminar la Fase 1 se sortean en 2 series de 4.'}
       </p>
+      {resumen.clasificadosFase1.length === 0 && <p className={s.vacio}>Los clasificados aparecerán cuando empiecen los partidos de la Fase 1.</p>}
       <ul className={s.clasificados}>
         {resumen.clasificadosFase1.map(c => (
           <li key={c.pareja_id}>

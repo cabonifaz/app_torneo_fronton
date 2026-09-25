@@ -3,9 +3,13 @@ import { NextResponse } from 'next/server';
 
 export async function PUT(request) {
   try {
-    const { id, puntos_pareja1, puntos_pareja2, pareja1_id, pareja2_id, reset, reset_parejas } = await request.json();
+    const { id, puntos_pareja1, puntos_pareja2, pareja1_id, pareja2_id, reset, reset_parejas, vaciar_fase } = await request.json();
 
-    if (reset_parejas) {
+    if (vaciar_fase) {
+      // Anula el sorteo de la Fase 2: los partidos de las series se conservan, vacíos
+      if (vaciar_fase !== 'cuartos') return NextResponse.json({ error: 'Fase no permitida' }, { status: 400 });
+      await pool.query("UPDATE partidos SET pareja1_id = NULL, pareja2_id = NULL, jugado = 0, puntos_pareja1 = 0, puntos_pareja2 = 0 WHERE fase = 'cuartos'");
+    } else if (reset_parejas) {
       await pool.query('UPDATE partidos SET pareja1_id = NULL, pareja2_id = NULL, jugado = 0, puntos_pareja1 = 0, puntos_pareja2 = 0 WHERE id = ?', [id]);
     } else if (reset) {
       await pool.query('UPDATE partidos SET jugado = 0, puntos_pareja1 = 0, puntos_pareja2 = 0 WHERE id = ?', [id]);
