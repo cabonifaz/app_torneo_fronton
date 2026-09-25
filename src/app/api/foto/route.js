@@ -1,50 +1,55 @@
-import pool from '../../../lib/db';
+// src/app/api/foto/route.js
 import { NextResponse } from 'next/server';
+import { buscarArchivo, guardarArchivo, eliminarArchivo, TIPOS_IMAGEN } from '../../../lib/storage';
 
-// GET: devuelve si existe la foto leyendo desde la base de datos
+const NOMBRE_FOTO = 'foto_campeon';
+const TAMANO_MAXIMO = 10 * 1024 * 1024; // 10 MB
+
+export const dynamic = 'force-dynamic';
+
+// GET: devuelve si existe la foto y la URL para mostrarla
 export async function GET() {
   try {
-    const [rows] = await pool.query('SELECT imagen FROM foto_campeon LIMIT 1');
-    
-    if (rows.length > 0) {
-      // Devolvemos el string en Base64 directo. El tag <img> de React lo lee nativamente.
-      return NextResponse.json({ existe: true, url: rows[0].imagen });
-    }
-    
-    return NextResponse.json({ existe: false, url: null });
+    const foto = await buscarArchivo(NOMBRE_FOTO);
+    return NextResponse.json({
+      existe: !!foto,
+      url: foto ? `/api/foto/imagen?t=${Math.round(foto.mtimeMs)}` : null,
+    });
   } catch (error) {
-    console.error("Error leyendo foto de BD:", error);
-    return NextResponse.json({ existe: false, url: null });
+    console.error('Error leyendo foto:', error);
+    return NextResponse.json({ error: 'Error al leer la foto' }, { status: 500 });
   }
 }
 
-// POST: guarda la foto enviada como base64 en la base de datos
+// POST: guarda la foto enviada como multipart/form-data (campo "imagen")
 export async function POST(request) {
   try {
-    const { imagen } = await request.json();
-    if (!imagen) return NextResponse.json({ error: 'No se recibió imagen' }, { status: 400 });
+    const formData = await request.formData();
+    const archivo = formData.get('imagen');
+    if (!archivo || typeof archivo === 'string') {
+      return NextResponse.json({ error: 'No se recibió imagen' }, { status: 400 });
+    }
 
-    // 1. Limpiamos la tabla para asegurarnos de que solo exista UNA foto de campeón
-    await pool.query('TRUNCATE TABLE foto_campeon');
-    
-    // 2. Insertamos la nueva imagen (incluyendo el prefijo data:image/...)
-    await pool.query('INSERT INTO foto_campeon (imagen) VALUES (?)', [imagen]);
+    const ext = TIPOS_IMAGEN[archivo.type];
+    if (!ext) return NextResponse.json({ error: 'Formato no soportado (usa JPG, PNG o WEBP)' }, { status: 415 });
+    if (archivo.size > TAMANO_MAXIMO) return NextResponse.json({ error: 'La imagen supera los 10 MB' }, { status: 413 });
 
-    // Devolvemos la misma imagen como URL para que el frontend la muestre inmediatamente
-    return NextResponse.json({ ok: true, url: imagen });
+    await guardarArchivo(NOMBRE_FOTO, ext, Buffer.from(await archivo.arrayBuffer()));
+    const foto = await buscarArchivo(NOMBRE_FOTO);
+    return NextResponse.json({ ok: true, url: `/api/foto/imagen?t=${Math.round(foto.mtimeMs)}` });
   } catch (error) {
-    console.error('Error guardando foto en BD:', error);
+    console.error('Error guardando foto:', error);
     return NextResponse.json({ error: 'Error al guardar' }, { status: 500 });
   }
 }
 
-// DELETE: elimina la foto de la base de datos
+// DELETE: elimina la foto
 export async function DELETE() {
   try {
-    await pool.query('TRUNCATE TABLE foto_campeon');
+    await eliminarArchivo(NOMBRE_FOTO);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error eliminando foto de BD:', error);
+    console.error('Error eliminando foto:', error);
     return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 });
   }
 }

@@ -189,28 +189,23 @@ const sortearFaseCuartos = async (partidosCuartos, clasificadosFase1) => {
     cargarDatos();
   };
 
-  const manejarFoto = (e) => {
+  const manejarFoto = async (e) => {
     const archivo = e.target.files[0];
     if (!archivo) return;
     setSubiendoFoto(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const res = await fetch('/api/foto', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imagen: ev.target.result })
-        });
-        const json = await res.json();
-        if (json.ok) setFotoUrl(json.url);
-        else alert('Error al subir la foto');
-      } catch (err) {
-        alert('Error de red al subir la foto');
-      } finally {
-        setSubiendoFoto(false);
-      }
-    };
-    reader.readAsDataURL(archivo);
+    try {
+      const formData = new FormData();
+      formData.append('imagen', archivo);
+      const res = await fetch('/api/foto', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.ok) setFotoUrl(json.url);
+      else alert(json.error || 'Error al subir la foto');
+    } catch (err) {
+      alert('Error de red al subir la foto');
+    } finally {
+      setSubiendoFoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const eliminarFoto = async () => {
