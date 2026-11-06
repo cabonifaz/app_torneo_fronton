@@ -3,21 +3,31 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './en-vivo.module.css';
 import { FASES, resumenTorneo, tablaGrupo, ordenarPartidosGrupo } from '../../lib/torneo-calculos';
+import { ETIQUETAS_FASE, FORMATOS, ganaPareja1, marcadorDePartido } from '../../lib/formatos';
+import { resumenRelampago } from '../../lib/relampago';
 
-const PESTANAS = [
-  ['resumen', 'Resumen'],
-  ['grupos', 'Grupos'],
-  ['series', 'Fase 2'],
-  ['llaves', 'Llaves'],
-];
+const PESTANAS = {
+  ranked16: [
+    ['resumen', 'Resumen'],
+    ['grupos', 'Grupos'],
+    ['series', 'Fase 2'],
+    ['llaves', 'Llaves'],
+  ],
+  relampago4: [
+    ['resumen', 'Resumen'],
+    ['tabla', 'Tabla'],
+    ['partidos', 'Partidos'],
+    ['final', 'Final'],
+  ],
+};
 const DURACION_DESTELLO_MS = 4000;
 // El servidor manda un latido cada 10 s; sin noticias en este tiempo la conexión se da por muerta
 const SILENCIO_MAXIMO_MS = 25000;
 
 // Firma de lo que el público ve de un partido: si cambia, el partido "destella"
-const firma = p => `${p.pareja1_id}|${p.pareja2_id}|${p.puntos_pareja1}|${p.puntos_pareja2}|${p.jugado}`;
+const firma = p => `${p.pareja1_id}|${p.pareja2_id}|${p.puntos_pareja1}|${p.puntos_pareja2}|${p.jugado}|${JSON.stringify(p.detalle_sets)}`;
 
-export default function EnVivo() {
+export default function EnVivo({ slug }) {
   const [datos, setDatos] = useState(null);
   const [conexion, setConexion] = useState('conectando');
   const [pestana, setPestana] = useState('resumen');
@@ -46,7 +56,7 @@ export default function EnVivo() {
 
     const conectar = () => {
       ultimoMensaje = Date.now();
-      fuente = new EventSource('/api/torneo/stream');
+      fuente = new EventSource(`/api/torneo/stream?torneo=${encodeURIComponent(slug)}`);
       fuente.onopen = () => setConexion('en-vivo');
       fuente.addEventListener('latido', () => { ultimoMensaje = Date.now(); });
       fuente.addEventListener('torneo', (evento) => {
@@ -84,7 +94,7 @@ export default function EnVivo() {
       clearTimeout(reintento);
       clearTimeout(temporizadorDestello.current);
     };
-  }, []);
+  }, [slug]);
 
   if (!datos) {
     return (
@@ -95,7 +105,9 @@ export default function EnVivo() {
     );
   }
 
-  const resumen = resumenTorneo(datos);
+  const esRelampago = datos.torneo?.formato === 'relampago4';
+  const pestanas = PESTANAS[esRelampago ? 'relampago4' : 'ranked16'];
+  const organizador = datos.torneo?.organizador;
 
   return (
     <div className={s.pagina}>
@@ -104,12 +116,17 @@ export default function EnVivo() {
         <div className={s.cabeceraTexto}>
           <h1 className={s.titulo}>{datos.torneo?.nombre || 'Torneo de Frontón'}</h1>
           {datos.torneo?.subtitulo && <p className={s.subtitulo}>{datos.torneo.subtitulo}</p>}
+          {organizador && (
+            <p className={s.organiza}>
+              Organiza{/front\s*on/i.test(organizador) ? <span className={s.frontOn}>FRONT ON</span> : <strong> {organizador}</strong>}
+            </p>
+          )}
         </div>
         <IndicadorConexion estado={conexion} />
       </header>
 
       <nav className={s.nav} aria-label="Secciones">
-        {PESTANAS.map(([id, etiqueta]) => (
+        {pestanas.map(([id, etiqueta]) => (
           <button key={id} className={pestana === id ? s.navActiva : s.navBoton} aria-current={pestana === id ? 'page' : undefined} onClick={() => setPestana(id)}>
             {etiqueta}
           </button>
@@ -117,6 +134,22 @@ export default function EnVivo() {
       </nav>
 
       <main className={s.contenido}>
+        {esRelampago
+          ? <CuerpoRelampago datos={datos} pestana={pestana} recientes={recientes} />
+          : <CuerpoRanked16 datos={datos} pestana={pestana} recientes={recientes} />}
+      </main>
+
+      <footer className={s.pie}>
+        Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener">Geeky Tech</a>
+      </footer>
+    </div>
+  );
+}
+
+function CuerpoRanked16({ datos, pestana, recientes }) {
+  const resumen = resumenTorneo(datos);
+  return (
+      <>
         {pestana === 'resumen' && <Resumen datos={datos} resumen={resumen} recientes={recientes} />}
         {pestana === 'grupos' && (
           <div className={s.gridGrupos}>
@@ -125,12 +158,145 @@ export default function EnVivo() {
         )}
         {pestana === 'series' && <Series datos={datos} resumen={resumen} recientes={recientes} />}
         {pestana === 'llaves' && <Llaves resumen={resumen} recientes={recientes} />}
-      </main>
+      </>
+  );
+}
 
-      <footer className={s.pie}>
-        Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener">Geeky Tech</a>
-      </footer>
-    </div>
+// ── Formato Relámpago: 4 parejas todos contra todos + final ──
+function CuerpoRelampago({ datos, pestana, recientes }) {
+  const r = resumenRelampago(datos);
+  const F = FORMATOS.relampago4;
+  const porcentaje = r.progreso.total ? Math.round((r.progreso.jugados / r.progreso.total) * 100) : 0;
+  const proximaRonda = r.proximos[0]?.ronda;
+
+  if (pestana === 'tabla') {
+    return (
+      <section className={s.tarjeta}>
+        <h2 className={s.tarjetaTitulo}>Tabla de posiciones</h2>
+        <TablaRelampago r={r} />
+      </section>
+    );
+  }
+
+  if (pestana === 'partidos') {
+    return (
+      <div className={s.gridGrupos}>
+        {[1, 2, 3].map(ronda => (
+          <section key={ronda} className={s.tarjeta}>
+            <h2 className={s.tarjetaTitulo}>Ronda {ronda}</h2>
+            <ul className={s.listaPartidos}>
+              {r.liga.filter(p => p.ronda === ronda).map(p => <Partido key={p.id} p={p} contexto reciente={recientes.has(p.id)} />)}
+            </ul>
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+  if (pestana === 'final') {
+    return (
+      <>
+        {r.campeon && <Campeon campeon={r.campeon} final={r.final} foto={datos.foto} />}
+        <section className={s.tarjeta}>
+          <h2 className={s.tarjetaTitulo}>Gran Final</h2>
+          <p className={s.nota}>1° vs 2° de la tabla · Mejor de {F.fases.final.mejorDe} sets a {F.fases.final.puntosSet}</p>
+          {r.final
+            ? <ul className={s.listaPartidos}><Partido p={r.final} reciente={recientes.has(r.final.id)} /></ul>
+            : (
+              <div className={s.cruceProvisional}>
+                <div className={s.fila}><span className={s.semilla}>1°</span><span className={s.nombre}>{r.finalistas[0]?.nombre_pareja || 'Por definir'}</span></div>
+                <div className={s.fila}><span className={s.semilla}>2°</span><span className={s.nombre}>{r.finalistas[1]?.nombre_pareja || 'Por definir'}</span></div>
+                {r.finalistas.length > 0 && !r.ligaTerminada && <span className={s.provisional}>Provisional</span>}
+              </div>
+            )}
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {r.campeon && <Campeon campeon={r.campeon} final={r.final} foto={datos.foto} />}
+      {!r.campeon && (
+        <section className={s.tarjetaFase}>
+          <div>
+            <p className={s.etiqueta}>Fase actual</p>
+            <h2 className={s.faseNombre}>{r.faseActual === 'final' ? 'Gran Final' : proximaRonda ? `${ETIQUETAS_FASE.liga} · Ronda ${proximaRonda}` : ETIQUETAS_FASE.liga}</h2>
+          </div>
+          <div className={s.progreso}>
+            <div className={s.progresoTexto}><strong>{r.progreso.jugados}</strong> de {r.progreso.total} partidos jugados</div>
+            <div className={s.barra} role="progressbar" aria-valuenow={porcentaje} aria-valuemin={0} aria-valuemax={100}>
+              <div className={s.barraRelleno} style={{ width: `${porcentaje}%` }} />
+            </div>
+          </div>
+        </section>
+      )}
+      <div className={s.gridResumen}>
+        <section className={s.tarjeta}>
+          <h2 className={s.tarjetaTitulo}>{proximaRonda && r.faseActual === 'liga' ? `En juego · Ronda ${proximaRonda}` : 'Próximo partido'}</h2>
+          {r.proximos.length === 0
+            ? <p className={s.vacio}>{r.campeon ? 'El torneo ha terminado.' : r.ligaTerminada ? 'La final se arma en breve.' : 'No hay partidos pendientes.'}</p>
+            : <ul className={s.listaPartidos}>{r.proximos.map(p => <Partido key={p.id} p={p} contexto reciente={recientes.has(p.id)} />)}</ul>}
+        </section>
+        <section className={s.tarjeta}>
+          <h2 className={s.tarjetaTitulo}>Posiciones</h2>
+          <TablaRelampago r={r} compacta />
+        </section>
+      </div>
+      <section className={s.tarjeta}>
+        <h2 className={s.tarjetaTitulo}>Últimos resultados</h2>
+        {r.ultimos.length === 0
+          ? <p className={s.vacio}>Aún no se ha jugado ningún partido.</p>
+          : <ul className={s.listaPartidos}>{r.ultimos.map(p => <Partido key={p.id} p={conRonda(p, r)} contexto reciente={recientes.has(p.id)} />)}</ul>}
+      </section>
+    </>
+  );
+}
+
+// Los "últimos" vienen sin ronda/cancha: se recuperan de la lista de la liga
+const conRonda = (p, r) => r.liga.find(l => l.id === p.id) || p;
+
+function TablaRelampago({ r, compacta = false }) {
+  const F = FORMATOS.relampago4;
+  return (
+    <>
+      <div className={s.tablaScroll}>
+        <table className={s.tabla}>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col" className={s.izq}>Pareja</th>
+              <th scope="col" title="Partidos jugados">PJ</th>
+              <th scope="col" title={`Puntos (${F.puntosVictoria} por victoria)`}>Pts</th>
+              <th scope="col" title="Diferencia de sets">DS</th>
+              <th scope="col" title="Diferencia de puntos">DP</th>
+              {!compacta && <th scope="col" title="Sets ganados-perdidos" className={s.opcional}>Sets</th>}
+              {!compacta && <th scope="col" title="Puntos a favor-en contra" className={s.opcional}>PF-PC</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {r.tabla.map((f, i) => {
+              const clasifica = r.hayJugados && i < F.clasificanFinal;
+              return (
+                <tr key={f.pareja_id} className={clasifica ? s.clasifica : undefined}>
+                  <td><span className={clasifica ? s.posClasifica : s.pos}>{i + 1}</span></td>
+                  <td className={s.izq}>{f.nombre_pareja}{f.empateSinResolver && <span className={s.estrella} title="Empate sin resolver">⚠</span>}</td>
+                  <td>{f.pj}</td>
+                  <td className={s.fuerte}>{f.puntos}</td>
+                  <td>{f.dif_sets > 0 ? `+${f.dif_sets}` : f.dif_sets}</td>
+                  <td className={f.diferencia_puntos > 0 ? s.positivo : f.diferencia_puntos < 0 ? s.negativo : undefined}>
+                    {f.diferencia_puntos > 0 ? `+${f.diferencia_puntos}` : f.diferencia_puntos}
+                  </td>
+                  {!compacta && <td className={s.opcional}>{f.sets_favor}-{f.sets_contra}</td>}
+                  {!compacta && <td className={s.opcional}>{f.puntos_favor}-{f.puntos_contra}</td>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className={s.leyenda}>Pasan los {F.clasificanFinal} primeros a la final. Desempate: diferencia de sets, luego diferencia de puntos.</p>
+    </>
   );
 }
 
@@ -187,9 +353,11 @@ function Resumen({ datos, resumen, recientes }) {
   );
 }
 
+const tieneSets = p => Array.isArray(p.detalle_sets);
+
 function Campeon({ campeon, final, foto }) {
-  const puntosGanador = Math.max(final.puntos_pareja1, final.puntos_pareja2);
-  const puntosRival = Math.min(final.puntos_pareja1, final.puntos_pareja2);
+  // Con sets se muestra el marcador en sets (2–1) y el detalle; con set único, los puntos
+  const [m1, m2] = tieneSets(final) ? [final.sets_pareja1, final.sets_pareja2] : [final.puntos_pareja1, final.puntos_pareja2];
   const rival = campeon.id === final.pareja1_id ? final.nombre_pareja2 : final.nombre_pareja1;
   return (
     <section className={s.campeon}>
@@ -197,30 +365,73 @@ function Campeon({ campeon, final, foto }) {
       <div className={s.campeonTexto}>
         <span className={s.campeonBadge}>🏆 Campeón</span>
         <h2 className={s.campeonNombre}>{campeon.nombre}</h2>
-        <p className={s.campeonMarcador}><strong>{puntosGanador}</strong> – {puntosRival} <span>vs {rival}</span></p>
+        <p className={s.campeonMarcador}>
+          <strong>{Math.max(m1, m2)}</strong> – {Math.min(m1, m2)} <span>vs {rival}</span>
+          {tieneSets(final) && <span> · {final.detalle_sets.map(([a, b]) => (campeon.id === final.pareja1_id ? `${a}-${b}` : `${b}-${a}`)).join(', ')}</span>}
+        </p>
       </div>
     </section>
   );
 }
 
+function tituloPartido(p) {
+  if (p.fase === 'liga') return p.ronda ? `Ronda ${p.ronda} · Cancha ${p.cancha}` : ETIQUETAS_FASE.liga;
+  return p.fase === 'grupos' || p.fase === 'cuartos' ? p.nombre_grupo : FASES[p.fase];
+}
+
 function Partido({ p, contexto = false, reciente = false }) {
   const definido = p.pareja1_id && p.pareja2_id;
-  const gana1 = p.jugado && p.puntos_pareja1 > p.puntos_pareja2;
-  const gana2 = p.jugado && p.puntos_pareja2 > p.puntos_pareja1;
-  const titulo = p.fase === 'grupos' || p.fase === 'cuartos' ? p.nombre_grupo : FASES[p.fase];
+  const gana1 = p.jugado && ganaPareja1(p);
+  const gana2 = p.jugado && !gana1;
+  const conSets = tieneSets(p);
+
+  // En partidos a sets: puntos de cada set (resaltando los ganados) y, en grande, los sets ganados
+  const enJuego = !p.jugado && p.en_juego === 1;
+  const vivo = enJuego ? marcadorDePartido(p) : null;
+
+  const marcador = (lado) => {
+    if (enJuego) {
+      // En juego: sets ya cerrados en pequeño y el set en curso en grande
+      return (
+        <span className={s.marcador}>
+          <span className={s.setsDetalle}>
+            {vivo.cerrados.map((set, i) => <span key={i} className={set[lado] > set[1 - lado] ? s.setGanado : undefined}>{set[lado]}</span>)}
+          </span>
+          <span className={`${s.puntos} ${s.puntosVivo}`}>{vivo.actual ? vivo.actual[lado] : (lado === 0 ? p.sets_pareja1 : p.sets_pareja2)}</span>
+        </span>
+      );
+    }
+    if (!p.jugado) return <span className={s.puntos}>–</span>;
+    if (!conSets) return <span className={s.puntos}>{lado === 0 ? p.puntos_pareja1 : p.puntos_pareja2}</span>;
+    return (
+      <span className={s.marcador}>
+        <span className={s.setsDetalle}>
+          {p.detalle_sets.map((set, i) => (
+            <span key={i} className={set[lado] > set[1 - lado] ? s.setGanado : undefined}>{set[lado]}</span>
+          ))}
+        </span>
+        <span className={s.puntos}>{lado === 0 ? p.sets_pareja1 : p.sets_pareja2}</span>
+      </span>
+    );
+  };
 
   return (
     <li className={`${s.partido} ${reciente ? s.reciente : ''}`}>
-      {contexto && <span className={s.partidoContexto}>{titulo}</span>}
+      {(contexto || enJuego) && (
+        <span className={s.partidoContexto}>
+          {contexto && tituloPartido(p)}
+          {enJuego && <span className={s.enJuegoBadge}>● En juego{vivo.actual ? ` · Set ${vivo.cerrados.length + 1}` : ''}</span>}
+        </span>
+      )}
       {definido ? (
         <div className={s.partidoFilas}>
           <div className={gana1 ? s.filaGanadora : s.fila}>
             <span className={s.nombre}>{p.nombre_pareja1}</span>
-            <span className={s.puntos}>{p.jugado ? p.puntos_pareja1 : '–'}</span>
+            {marcador(0)}
           </div>
           <div className={gana2 ? s.filaGanadora : s.fila}>
             <span className={s.nombre}>{p.nombre_pareja2}</span>
-            <span className={s.puntos}>{p.jugado ? p.puntos_pareja2 : '–'}</span>
+            {marcador(1)}
           </div>
         </div>
       ) : (

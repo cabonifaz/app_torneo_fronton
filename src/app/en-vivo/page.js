@@ -1,10 +1,11 @@
-import EnVivo from './EnVivo';
+// Compatibilidad con el enlace anterior: /en-vivo[?torneo=<slug>] → /t/<slug>
+import { notFound, redirect } from 'next/navigation';
+import { resolverTorneo } from '../../lib/torneo';
 
-export const metadata = {
-  title: 'En vivo · Ranked',
-  description: 'Resultados y posiciones del torneo de frontón en tiempo real',
-};
+export const dynamic = 'force-dynamic';
 
-export default function Page() {
-  return <EnVivo />;
+export default async function Page({ searchParams }) {
+  const torneo = await resolverTorneo((await searchParams).torneo);
+  if (!torneo) notFound();
+  redirect(`/t/${torneo.slug}`);
 }

@@ -20,12 +20,8 @@ export function ordenarPartidosGrupo(partidos) {
 
 export const nombresGrupos = (partidos, fase) => [...new Set(partidos.filter(p => p.fase === fase).map(p => p.nombre_grupo))];
 
-export function ganador(partido) {
-  if (!partido?.jugado) return null;
-  return partido.puntos_pareja1 > partido.puntos_pareja2
-    ? { id: partido.pareja1_id, nombre: partido.nombre_pareja1 }
-    : { id: partido.pareja2_id, nombre: partido.nombre_pareja2 };
-}
+// Por sets si el partido los tiene; si no, por puntos (set único)
+export { ganadorPartido as ganador } from './formatos';
 
 // Tabla de un grupo o serie, con partidos jugados por pareja
 export function tablaGrupo(datos, nombreGrupo) {

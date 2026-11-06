@@ -1,0 +1,79 @@
+.pagina {
+  --navy: #0B0F1E; --card: #131A2E; --card2: #1A2238; --borde: #252F4A;
+  --texto: #F6F6F6; --suave: #A3ABC2; --tenue: #6B7490; --lima: #ADF238; --rojo: #FF5C6C; --oro: #F5C542;
+  --titulo: var(--font-titulo), var(--font-texto), system-ui, sans-serif;
+  min-height: 100dvh;
+  background: var(--navy);
+  color: var(--texto);
+  font-family: var(--font-texto), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Lista de partidos ── */
+.lista { max-width: 640px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 8px; }
+.cabecera img { width: 110px; height: auto; }
+.tituloTorneo { margin: 0; font-family: var(--titulo); font-style: italic; font-weight: 800; text-transform: uppercase; font-size: 1.4rem; line-height: 1.05; }
+.sub { margin: 2px 0 0; color: var(--lima); font-size: 0.8rem; font-weight: 600; }
+.seccion { margin: 10px 0 0; color: var(--suave); font-size: 0.75rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.itemPartido {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left;
+  padding: 16px; border-radius: 14px; border: 1px solid var(--borde); background: var(--card);
+  color: var(--texto); font: inherit; font-size: 1.05rem; cursor: pointer; touch-action: manipulation;
+}
+.itemPartido:active { transform: scale(0.99); }
+.itemEnJuego { border-color: var(--rojo); }
+.itemJugado { opacity: 0.6; }
+.itemContexto { display: flex; justify-content: space-between; color: var(--tenue); font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.itemVs { font-weight: 700; }
+.itemVs span { color: var(--tenue); font-weight: 500; margin: 0 6px; }
+.badgeVivo { color: var(--rojo); }
+.salir { background: none; border: 1px solid var(--borde); color: var(--suave); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.75rem; cursor: pointer; }
+
+/* ── Marcador ── */
+.marcador { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+.barra { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--borde); }
+.volver { background: none; border: none; color: var(--suave); font: inherit; font-size: 1rem; padding: 6px 4px; cursor: pointer; }
+.barraCentro { flex: 1; text-align: center; min-width: 0; }
+.barraTitulo { margin: 0; font-family: var(--titulo); font-style: italic; font-weight: 800; text-transform: uppercase; font-size: 1.05rem; }
+.barraSub { margin: 0; color: var(--tenue); font-size: 0.75rem; }
+.estado { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+.estadoOk { color: var(--lima); background: rgba(173, 242, 56, 0.1); }
+.estadoGuardando { color: var(--suave); background: var(--card); }
+.estadoError { color: var(--rojo); background: rgba(255, 92, 108, 0.12); }
+
+.sets { display: flex; justify-content: center; gap: 8px; padding: 8px; flex-wrap: wrap; }
+.setChip { font-size: 0.8rem; font-variant-numeric: tabular-nums; padding: 3px 10px; border-radius: 999px; background: var(--card); color: var(--suave); border: 1px solid var(--borde); }
+.setChipActual { border-color: var(--lima); color: var(--texto); }
+
+.lados { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 8px; min-height: 0; }
+@media (orientation: landscape) { .lados { flex-direction: row; } }
+
+.lado {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; border: 2px solid var(--borde); border-radius: 18px; background: var(--card); color: var(--texto);
+  font: inherit; cursor: pointer; touch-action: manipulation; padding: 12px;
+}
+.lado:active { background: var(--card2); }
+.ladoLider { border-color: var(--lima); }
+.ladoNombre { font-family: var(--titulo); font-style: italic; font-weight: 800; text-transform: uppercase; font-size: clamp(1.1rem, 4.5vw, 1.8rem); text-align: center; line-height: 1.05; }
+.ladoSets { color: var(--suave); font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase; }
+.ladoPuntos { font-family: var(--titulo); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 0.9; font-size: clamp(5rem, 24vmin, 12rem); }
+.ladoAyuda { color: var(--tenue); font-size: 0.75rem; }
+.restar {
+  position: absolute; top: 10px; right: 10px; width: 52px; height: 52px; border-radius: 50%;
+  border: 1px solid var(--borde); background: var(--navy); color: var(--suave); font-size: 1.6rem; line-height: 1; cursor: pointer; touch-action: manipulation;
+}
+
+.acciones { display: flex; gap: 8px; padding: 10px 8px calc(10px + env(safe-area-inset-bottom)); }
+.boton { flex: 1; padding: 16px 10px; border-radius: 14px; border: 1px solid var(--borde); background: var(--card); color: var(--texto); font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer; touch-action: manipulation; }
+.boton:disabled { opacity: 0.4; }
+.botonPrincipal { background: var(--lima); color: var(--navy); border-color: var(--lima); flex: 2; }
+.botonFinal { background: var(--oro); color: var(--navy); border-color: var(--oro); flex: 2; }
+
+.aviso { margin: 0 8px 8px; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; text-align: center; }
+.avisoError { color: var(--rojo); background: rgba(255, 92, 108, 0.12); }
+.avisoInfo { color: var(--lima); background: rgba(173, 242, 56, 0.1); }
+
+.terminado { max-width: 520px; margin: 0 auto; padding: 32px 16px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
+.terminadoGanador { font-family: var(--titulo); font-style: italic; font-weight: 800; text-transform: uppercase; font-size: 2rem; color: var(--lima); margin: 0; }

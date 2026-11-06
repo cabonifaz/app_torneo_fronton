@@ -2,11 +2,12 @@
 // Sirve la foto desde el volumen persistente (fuera de /public, que es de solo lectura tras el build)
 import { readFile } from 'fs/promises';
 import { buscarArchivo } from '../../../../lib/storage';
+import { nombreFotoCampeon } from '../../../../lib/torneo';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const foto = await buscarArchivo('foto_campeon');
+export async function GET(request) {
+  const foto = await buscarArchivo(nombreFotoCampeon(Number(request.nextUrl.searchParams.get('torneo_id')) || 1));
   if (!foto) return new Response('No encontrada', { status: 404 });
 
   return new Response(await readFile(foto.ruta), {

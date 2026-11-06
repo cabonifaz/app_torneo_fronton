@@ -399,3 +399,39 @@
   .enVivo .punto, .reciente { animation: none; }
   .barraRelleno { transition: none; }
 }
+
+/* ── Partidos al mejor de N sets ── */
+.marcador { display: inline-flex; align-items: center; gap: 10px; }
+.setsDetalle { display: inline-flex; gap: 6px; color: var(--tenue); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.setsDetalle span { min-width: 2ch; text-align: right; }
+.setsDetalle .setGanado { color: var(--texto); font-weight: 700; }
+
+.rondaTitulo {
+  margin: 0 0 10px;
+  color: var(--suave);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.leyenda { margin: 10px 0 0; color: var(--tenue); font-size: 0.78rem; line-height: 1.5; }
+.organiza { margin: 6px 0 0; color: var(--suave); font-size: 0.7rem; letter-spacing: 1.5px; text-transform: uppercase; }
+.frontOn {
+  margin-left: 6px;
+  padding: 1px 8px 2px;
+  border-radius: 6px;
+  background: #1D7A2E;
+  box-shadow: inset 0 -3px 0 #46D33F;
+  color: #fff;
+  font-family: var(--titulo);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+}
+
+/* ── Partido en juego (marcador del árbitro en tiempo real) ── */
+.enJuegoBadge { margin-left: 8px; color: var(--rojo, #FF5C6C); animation: latir 1.6s ease-in-out infinite; }
+.puntosVivo { color: var(--texto); }
+@keyframes latir { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .enJuegoBadge { animation: none; } }

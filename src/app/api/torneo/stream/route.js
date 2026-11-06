@@ -1,6 +1,7 @@
 // src/app/api/torneo/stream/route.js
 // Server-Sent Events: envía el estado del torneo cada vez que cambia
 import { suscribir } from '../../../../lib/torneo-en-vivo';
+import { resolverTorneo } from '../../../../lib/torneo';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,10 @@ export const dynamic = 'force-dynamic';
 // Es un evento con nombre (no un comentario SSE) para que el navegador lo reciba en JavaScript.
 const LATIDO_MS = 10000;
 
+// GET /api/torneo/stream?torneo=<slug>  (sin slug: el torneo más reciente)
 export async function GET(request) {
+  const torneo = await resolverTorneo(request.nextUrl.searchParams.get('torneo')).catch(() => null);
+  if (!torneo) return new Response('Torneo no encontrado', { status: 404 });
   const codificador = new TextEncoder();
   let cancelar = () => {};
 
@@ -30,7 +34,7 @@ export async function GET(request) {
       request.signal.addEventListener('abort', () => cancelar());
 
       try {
-        desuscribir = await suscribir((json) => escribir(`event: torneo\ndata: ${json}\n\n`));
+        desuscribir = await suscribir(torneo.id, (json) => escribir(`event: torneo\ndata: ${json}\n\n`));
         if (request.signal.aborted) cancelar();
       } catch (error) {
         console.error('[en-vivo] Error al suscribir:', error.message);
