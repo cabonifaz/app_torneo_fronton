@@ -1,6 +1,6 @@
 // Pantalla del árbitro (se ejecuta también con viewport de móvil): marcador punto a punto en vivo
 import { test, expect } from '@playwright/test';
-import { crearTorneoPrueba, eliminarTorneoPrueba, iniciarSesion, datosTorneo, PAREJAS } from './utilidades.mjs';
+import { crearTorneoPrueba, eliminarTorneoPrueba, datosTorneo, saltarGuias, PAREJAS } from './utilidades.mjs';
 
 let torneo;
 test.beforeAll(async ({ request }) => { torneo = await crearTorneoPrueba(request); });
@@ -11,6 +11,7 @@ const sumar = async (page, lado, veces) => {
 };
 
 test('el árbitro lleva un partido y la vista pública lo ve en vivo', async ({ page, browser }) => {
+  await saltarGuias(page.context());
   // El árbitro solo con su clave: entra a su pantalla, pero no al panel de admin
   await page.goto(`/t/${torneo.slug}/arbitro`);
   await expect(page).toHaveURL(/login\?rol=arbitro/);

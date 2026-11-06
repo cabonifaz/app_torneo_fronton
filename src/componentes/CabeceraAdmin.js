@@ -12,15 +12,16 @@ export default function CabeceraAdmin({ torneo, torneos = [] }) {
     window.location.href = `${base}/login?rol=admin`;
   };
 
+  // Cabecera compacta (una fila + acciones) para que el contenido entre en la pantalla del celular
   return (
-    <header style={styles.header}>
-      <img src="/brand/ranked-wordmark.png" alt="Ranked" style={styles.logo} />
-      <div style={styles.headerTexto}>
-        <h1 style={styles.title}>{torneo.nombre || 'Torneo de Frontón'}</h1>
-        {torneo.subtitulo && <p style={styles.subtitle}>{torneo.subtitulo}</p>}
-        {torneo.organizador && <Organizador nombre={torneo.organizador} />}
+    <header style={cabecera}>
+      <img src="/brand/ranked-wordmark.png" alt="Ranked" style={{ width: 'clamp(76px, 20vw, 140px)', height: 'auto' }} />
+      <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+        <h1 style={{ ...styles.title, fontSize: 'clamp(1.05rem, 4.4vw, 1.6rem)' }}>{torneo.nombre || 'Torneo de Frontón'}</h1>
+        {torneo.subtitulo && <p style={{ ...styles.subtitle, margin: '2px 0 0', fontSize: '0.75rem' }}>{torneo.subtitulo}</p>}
+        {torneo.organizador && <Organizador nombre={torneo.organizador} compacto />}
       </div>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', flex: '1 1 100%' }} data-guia="admin-enlaces">
         {torneos.length > 0 && opciones.length > 1 && (
           <select
             aria-label="Cambiar de torneo"
@@ -31,10 +32,10 @@ export default function CabeceraAdmin({ torneo, torneos = [] }) {
             {opciones.map(t => <option key={t.id} value={t.slug}>{t.nombre}{t.subtitulo ? ` · ${t.subtitulo}` : ''}{t.es_prueba ? ' (prueba)' : ''}</option>)}
           </select>
         )}
-        <a href={base} target="_blank" rel="noopener" style={styles.linkPublico}>● Vista pública</a>
-        <a href={`${base}/arbitro`} target="_blank" rel="noopener" style={styles.linkPublico}>Árbitro</a>
-        {torneos.length > 0 && <a href="/superadmin" style={styles.linkPublico}>Super admin</a>}
-        <button onClick={salir} style={{ ...styles.linkPublico, background: 'transparent', color: C.suave, borderColor: C.borde, cursor: 'pointer', fontFamily: 'inherit' }}>Salir</button>
+        <a href={base} target="_blank" rel="noopener" style={chip}>● Vista pública</a>
+        <a href={`${base}/arbitro`} target="_blank" rel="noopener" style={chip}>Árbitro</a>
+        {torneos.length > 0 && <a href="/superadmin" style={chip}>Super admin</a>}
+        <button onClick={salir} style={{ ...chip, background: 'transparent', color: C.suave, borderColor: C.borde, cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto' }}>Salir</button>
       </div>
     </header>
   );
@@ -74,3 +75,15 @@ const selector = {
   fontFamily: 'inherit',
   maxWidth: '100%',
 };
+
+const cabecera = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '6px 12px',
+  padding: '6px 0 10px',
+  marginBottom: '10px',
+  borderBottom: `1px solid ${C.borde}`,
+};
+
+const chip = { ...styles.linkPublico, padding: '5px 10px', fontSize: '0.68rem', letterSpacing: '0.5px' };

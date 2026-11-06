@@ -39,3 +39,12 @@ export async function huella(request, slug) {
   const d = await datosTorneo(request, slug);
   return JSON.stringify(d.partidos.map(p => [p.id, p.pareja1_id, p.pareja2_id, p.puntos_pareja1, p.puntos_pareja2, p.jugado, p.en_juego]));
 }
+
+// Marca las guías como ya vistas (si no, la guía de la primera vez cubre la pantalla)
+export async function saltarGuias(context) {
+  await context.addInitScript(() => {
+    for (const id of ['admin-relampago', 'arbitro-lista', 'arbitro-marcador', 'superadmin']) {
+      try { localStorage.setItem(`ranked_guia_${id}_v1`, '1'); } catch {}
+    }
+  });
+}

@@ -110,7 +110,7 @@ export default function EnVivo({ slug }) {
   const organizador = datos.torneo?.organizador;
 
   return (
-    <div className={s.pagina}>
+    <div className={esRelampago ? `${s.pagina} ${s.compacta}` : s.pagina}>
       <header className={s.cabecera}>
         <img src="/brand/ranked-wordmark.png" alt="Ranked" className={s.logo} />
         <div className={s.cabeceraTexto}>
@@ -221,7 +221,7 @@ function CuerpoRelampago({ datos, pestana, recientes }) {
         <section className={s.tarjetaFase}>
           <div>
             <p className={s.etiqueta}>Fase actual</p>
-            <h2 className={s.faseNombre}>{r.faseActual === 'final' ? 'Gran Final' : proximaRonda ? `${ETIQUETAS_FASE.liga} · Ronda ${proximaRonda}` : ETIQUETAS_FASE.liga}</h2>
+            <h2 className={s.faseNombre}>{r.faseActual === 'final' ? 'Gran Final' : proximaRonda ? `Ronda ${proximaRonda} de 3` : ETIQUETAS_FASE.liga}</h2>
           </div>
           <div className={s.progreso}>
             <div className={s.progresoTexto}><strong>{r.progreso.jugados}</strong> de {r.progreso.total} partidos jugados</div>
@@ -243,18 +243,10 @@ function CuerpoRelampago({ datos, pestana, recientes }) {
           <TablaRelampago r={r} compacta />
         </section>
       </div>
-      <section className={s.tarjeta}>
-        <h2 className={s.tarjetaTitulo}>Últimos resultados</h2>
-        {r.ultimos.length === 0
-          ? <p className={s.vacio}>Aún no se ha jugado ningún partido.</p>
-          : <ul className={s.listaPartidos}>{r.ultimos.map(p => <Partido key={p.id} p={conRonda(p, r)} contexto reciente={recientes.has(p.id)} />)}</ul>}
-      </section>
+      {/* Los resultados completos están en la pestaña Partidos: el Resumen entra en una pantalla */}
     </>
   );
 }
-
-// Los "últimos" vienen sin ronda/cancha: se recuperan de la lista de la liga
-const conRonda = (p, r) => r.liga.find(l => l.id === p.id) || p;
 
 function TablaRelampago({ r, compacta = false }) {
   const F = FORMATOS.relampago4;

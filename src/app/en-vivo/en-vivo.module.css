@@ -435,3 +435,51 @@
 .puntosVivo { color: var(--texto); }
 @keyframes latir { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .enJuegoBadge { animation: none; } }
+
+/* ── Modo compacto (formato Relámpago): pensado para que cada pestaña entre en la pantalla
+   del celular o tablet sin scroll ── */
+.compacta { padding-bottom: 8px; }
+.compacta .cabecera {
+  grid-template-columns: auto 1fr auto;
+  justify-items: start;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 0 8px;
+  text-align: left;
+}
+.compacta .logo { width: clamp(72px, 20vw, 130px); }
+.compacta .titulo { font-size: clamp(1.05rem, 4.6vw, 1.9rem); }
+.compacta .subtitulo { margin-top: 2px; font-size: 0.75rem; }
+.compacta .organiza { margin-top: 3px; font-size: 0.62rem; }
+.compacta .frontOn { font-size: 0.8rem; padding: 0 6px 1px; }
+.compacta .enVivo, .compacta .desconectado { padding: 4px 9px; font-size: 0.65rem; letter-spacing: 0.5px; }
+.compacta .nav { margin-bottom: 10px; padding-top: 6px; padding-bottom: 6px; }
+.compacta .navBoton, .compacta .navActiva { min-height: 40px; padding: 6px 10px; font-size: 0.92rem; }
+.compacta .contenido { gap: 10px; }
+.compacta .tarjeta, .compacta .tarjetaFase { padding: 10px 12px; border-radius: 12px; }
+.compacta .tarjetaTitulo { margin-bottom: 8px; font-size: 1.05rem; }
+.compacta .tarjetaFase { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.compacta .faseNombre { font-size: clamp(1rem, 4.2vw, 1.5rem); }
+.compacta .progreso { flex: 0 1 45%; min-width: 0; gap: 4px; }
+.compacta .progresoTexto { font-size: 0.78rem; text-align: right; }
+.compacta .gridResumen, .compacta .gridGrupos { gap: 10px; }
+.compacta .listaPartidos { gap: 6px; }
+.compacta .partido { padding: 6px 8px; }
+.compacta .partidoContexto { margin-bottom: 2px; font-size: 0.65rem; }
+.compacta .fila, .compacta .filaGanadora { padding: 2px 6px; font-size: 0.9rem; }
+.compacta .puntos { font-size: 1.15rem; }
+.compacta .tabla { font-size: 0.85rem; }
+.compacta .tabla td { padding: 6px 4px; }
+.compacta .leyenda { margin-top: 6px; font-size: 0.7rem; }
+.compacta .campeon { padding: 14px; gap: 10px; }
+.compacta .campeonFoto { width: min(160px, 40vw); }
+.compacta .pie { padding: 12px 0 0; font-size: 0.62rem; }
+/* Los 3 rondas lado a lado en tablet horizontal / escritorio */
+@media (min-width: 900px) {
+  .compacta .gridGrupos { grid-template-columns: repeat(3, 1fr); }
+}
+/* Pantallas bajas (tablet horizontal, celulares chicos): cabecera aún más baja */
+@media (max-height: 700px) {
+  .compacta .subtitulo { display: none; }
+  .compacta .cabecera { padding: 6px 0; }
+}

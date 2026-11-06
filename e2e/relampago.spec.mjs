@@ -1,6 +1,6 @@
 // Flujo completo del Campeonato Relámpago desde el panel de admin
 import { test, expect } from '@playwright/test';
-import { crearTorneoPrueba, eliminarTorneoPrueba, iniciarSesion, datosTorneo, huella, PAREJAS, ESCENARIO_DESEMPATE } from './utilidades.mjs';
+import { crearTorneoPrueba, eliminarTorneoPrueba, datosTorneo, huella, saltarGuias, PAREJAS, ESCENARIO_DESEMPATE } from './utilidades.mjs';
 
 let torneo;
 let huellaMary;
@@ -35,6 +35,7 @@ test('sin sesión, el panel pide clave y las APIs rechazan escrituras', async ({
 });
 
 test('liga completa con desempates, final y campeón', async ({ page, context }) => {
+  await saltarGuias(context);
   await page.goto(`/t/${torneo.slug}/login?rol=admin`);
   await page.getByTestId('login-clave').fill('1111');
   await page.getByTestId('login-entrar').click();
@@ -63,6 +64,7 @@ test('liga completa con desempates, final y campeón', async ({ page, context })
 
   // Cargar los 6 partidos del escenario de desempate
   for (const [n, p] of liga.entries()) {
+    await page.getByTestId(`ronda-${Math.floor(n / 2) + 1}`).click();
     for (const [i, [a, b]] of ESCENARIO_DESEMPATE[n].entries()) {
       await page.getByTestId(`set-${p.id}-${i + 1}-1`).fill(String(a));
       await page.getByTestId(`set-${p.id}-${i + 1}-2`).fill(String(b));

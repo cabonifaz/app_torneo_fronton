@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { C, styles, boton, titulo } from './admin-estilos';
 import { FORMATOS } from '../lib/formatos';
+import Guia from './Guia';
 
 const json = { 'Content-Type': 'application/json' };
 const aSlug = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
@@ -46,6 +47,7 @@ export default function SuperAdmin() {
       {creando && <FormularioNuevo onCreado={() => { setCreando(false); cargar(); }} />}
 
       {!torneos ? <p style={styles.faseInfo}>Cargando…</p> : torneos.map(t => <TarjetaTorneo key={t.id} t={t} onCambio={cargar} />)}
+      {torneos && <Guia id="superadmin" />}
     </div>
   );
 }

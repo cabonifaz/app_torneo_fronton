@@ -6,6 +6,7 @@ import s from './arbitro.module.css';
 import { useTorneoEnVivo } from '../lib/useTorneoEnVivo';
 import { reglasFase, marcadorDePartido, ganaPareja1, textoSets, ETIQUETAS_FASE } from '../lib/formatos';
 import { rondaYCancha } from '../lib/relampago';
+import Guia from './Guia';
 
 const json = { 'Content-Type': 'application/json' };
 
@@ -90,6 +91,7 @@ function ListaPartidos({ torneo, datos, onElegir }) {
         <p className={s.seccion}>Por jugar</p>
         {pendientes.length ? pendientes.map(item) : <p className={s.sub}>No hay partidos pendientes con parejas definidas.</p>}
         {jugados.length > 0 && <><p className={s.seccion}>Finalizados</p>{jugados.map(item)}</>}
+        <Guia id="arbitro-lista" />
       </div>
     </div>
   );
@@ -266,7 +268,7 @@ function Marcador({ torneo, partido, contexto, onVolver }) {
 
       <div className={s.acciones}>
         <button className={s.boton} onClick={deshacer} disabled={!historial.length} data-testid="arbitro-deshacer">↶ Deshacer</button>
-        <button className={s.boton} onClick={() => setInvertido(v => !v)} aria-pressed={invertido}>⇄ Lados</button>
+        <button className={s.boton} onClick={() => setInvertido(v => !v)} aria-pressed={invertido} data-guia="arbitro-lados">⇄ Lados</button>
         {decidido ? (
           <button className={`${s.boton} ${s.botonFinal}`} onClick={finalizar} disabled={finalizando} data-testid="arbitro-finalizar">
             {finalizando ? 'Guardando…' : '🏁 Finalizar partido'}
@@ -277,6 +279,7 @@ function Marcador({ torneo, partido, contexto, onVolver }) {
           </button>
         )}
       </div>
+      <Guia id="arbitro-marcador" />
     </div>
   );
 }

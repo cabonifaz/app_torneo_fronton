@@ -26,7 +26,7 @@ export const badgeCirculo = { display: 'inline-flex', alignItems: 'center', just
 
 export const styles = {
   loading: { display: 'flex', flexDirection: 'column', gap: '14px', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1rem', color: C.suave, backgroundColor: C.navy },
-  container: { maxWidth: '820px', margin: '0 auto', padding: '16px', backgroundColor: C.navy, color: C.texto, minHeight: '100vh', boxSizing: 'border-box' },
+  container: { maxWidth: '820px', margin: '0 auto', padding: '10px 12px 16px', backgroundColor: C.navy, color: C.texto, minHeight: '100vh', boxSizing: 'border-box' },
 
   // ── Cabecera ──
   header: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '18px 0 20px', marginBottom: '16px', borderBottom: `1px solid ${C.borde}` },
@@ -37,7 +37,7 @@ export const styles = {
   linkPublico: { padding: '6px 14px', border: `1px solid ${C.limaBorde}`, borderRadius: '999px', color: C.lima, fontSize: '0.75rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' },
 
   // ── Pestañas ──
-  tabsContainer: { display: 'flex', gap: '4px', backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '10px', padding: '4px', marginBottom: '18px', overflowX: 'auto' },
+  tabsContainer: { display: 'flex', gap: '4px', backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '10px', padding: '4px', marginBottom: '12px', overflowX: 'auto' },
   tab: { ...titulo, fontWeight: '700', flex: '1 0 auto', padding: '10px 12px', textAlign: 'center', border: 'none', background: 'transparent', color: C.suave, borderRadius: '7px', cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap' },
   tabActive: { ...titulo, fontWeight: '800', flex: '1 0 auto', padding: '10px 12px', textAlign: 'center', border: 'none', background: C.lima, color: C.navy, borderRadius: '7px', cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap' },
 
@@ -47,7 +47,7 @@ export const styles = {
   subTabActive: { background: C.limaFondo },
 
   // ── Tarjetas y secciones ──
-  groupCard: { backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '14px', padding: '16px', marginBottom: '20px' },
+  groupCard: { backgroundColor: C.card, border: `1px solid ${C.borde}`, borderRadius: '14px', padding: '14px', marginBottom: '14px' },
   groupTitle: { ...titulo, margin: '0 0 12px 0', color: C.texto, fontSize: '1.45rem' },
   divider: { height: '1px', backgroundColor: C.borde, margin: '16px 0' },
   seccionLabel: { fontSize: '0.75rem', fontWeight: '700', color: C.suave, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '0 0 10px 0' },
@@ -152,6 +152,6 @@ export const styles = {
   reglaTitulo: { ...titulo, display: 'block', color: C.lima, fontSize: '1.05rem' },
   reglasPuntos: { margin: 0, paddingLeft: '20px', color: C.suave, fontSize: '0.92rem', lineHeight: 1.6 },
 
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '24px 0 8px', color: C.tenue, fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' },
+  footer: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px 0 4px', color: C.tenue, fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' },
   footerLink: { color: C.suave, fontWeight: '700', textDecoration: 'none' },
 };

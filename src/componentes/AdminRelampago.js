@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { C, styles, titulo, boton } from './admin-estilos';
 import CabeceraAdmin from './CabeceraAdmin';
 import { useTorneoEnVivo } from '../lib/useTorneoEnVivo';
+import Guia from './Guia';
 import { FORMATOS, reglasFase, validarSets, ganaPareja1, textoSets } from '../lib/formatos';
 import { resumenRelampago } from '../lib/relampago';
 
@@ -14,6 +15,7 @@ export default function AdminRelampago({ torneo, torneos }) {
   // Tiempo real por SSE: los cambios del árbitro y de otros dispositivos llegan sin recargar
   const { datos: data, conexion } = useTorneoEnVivo(torneo.slug);
   const [tab, setTab] = useState('partidos');
+  const [ronda, setRonda] = useState(null);
   const [fotoSubida, setFotoUrl] = useState(undefined); // undefined = usar la de la transmisión
   const fotoUrl = fotoSubida === undefined ? data?.foto ?? null : fotoSubida;
 
@@ -35,6 +37,8 @@ export default function AdminRelampago({ torneo, torneos }) {
   );
 
   const r = resumenRelampago(data);
+  // Ronda elegida o, por defecto, la que se está jugando (la última si la liga terminó)
+  const rondaVisible = ronda ?? r.proximos.find(p => p.fase === 'liga')?.ronda ?? 3;
   const partidoFinal = data.partidos.find(p => p.fase === 'final');
 
   // Cambiar un resultado de la liga con la final ya armada puede cambiar quién la juega
@@ -67,17 +71,16 @@ export default function AdminRelampago({ torneo, torneos }) {
 
       {tab === 'partidos' && (
         <>
-          <ResumenLiga r={r} />
-          {[1, 2, 3].map(ronda => (
-            <section key={ronda} style={styles.groupCard}>
-              <h2 style={styles.groupTitle}>Ronda {ronda}</h2>
-              <div style={styles.matchesGrid}>
-                {r.liga.filter(p => p.ronda === ronda).map(p => (
-                  <TarjetaPartido key={p.id} partido={p} titulo={`Cancha ${p.cancha}`} onGuardar={guardarSets} onReset={resetearPartido} />
-                ))}
-              </div>
-            </section>
-          ))}
+          {/* Una ronda a la vez (sus 2 partidos se juegan a la vez): entra en la pantalla sin scroll */}
+          <SelectorRonda r={r} ronda={rondaVisible} onElegir={setRonda} />
+          <div style={styles.matchesGrid}>
+            {r.liga.filter(p => p.ronda === rondaVisible).map(p => (
+              <TarjetaPartido key={p.id} partido={p} titulo={`Cancha ${p.cancha}`} onGuardar={guardarSets} onReset={resetearPartido} />
+            ))}
+          </div>
+          <p style={{ ...styles.faseInfo, textAlign: 'center', margin: '10px 0 0' }}>
+            {r.progreso.jugados} de {r.progreso.total} jugados · Mejor de {F.fases.liga.mejorDe} sets a {F.fases.liga.puntosSet}
+          </p>
         </>
       )}
 
@@ -97,6 +100,7 @@ export default function AdminRelampago({ torneo, torneos }) {
 
       {tab === 'reglas' && <Reglas />}
 
+      <Guia id="admin-relampago" />
       <footer style={styles.footer}>
         <span>Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener" style={styles.footerLink}>Geeky Tech</a></span>
       </footer>
@@ -104,16 +108,22 @@ export default function AdminRelampago({ torneo, torneos }) {
   );
 }
 
-function ResumenLiga({ r }) {
-  const ronda = r.proximos[0]?.ronda;
+function SelectorRonda({ r, ronda, onElegir }) {
   return (
-    <div style={{ ...styles.sorteoCard, marginBottom: '16px' }}>
-      <div>
-        <h3 style={styles.sorteoTitulo}>{r.ligaTerminada ? 'Liga terminada' : ronda ? `Siguiente: Ronda ${ronda}` : 'Todos contra todos'}</h3>
-        <p style={styles.sorteoTexto}>
-          {r.progreso.jugados} de {r.progreso.total} partidos jugados · Mejor de {F.fases.liga.mejorDe} sets a {F.fases.liga.puntosSet} · Dos canchas a la vez
-        </p>
-      </div>
+    <div style={{ ...styles.subTabsContainer, marginBottom: '10px' }} role="tablist" aria-label="Rondas">
+      {[1, 2, 3].map(n => {
+        const partidos = r.liga.filter(p => p.ronda === n);
+        const jugados = partidos.filter(p => p.jugado === 1).length;
+        const enJuego = partidos.some(p => p.en_juego === 1 && !p.jugado);
+        const activa = n === ronda;
+        const estado = jugados === partidos.length ? '✓' : enJuego ? '●' : `${jugados}/${partidos.length}`;
+        return (
+          <button key={n} role="tab" aria-selected={activa} onClick={() => onElegir(n)} data-testid={`ronda-${n}`}
+            style={activa ? { ...styles.subTabBase, ...styles.subTabActive, color: C.lima, borderColor: C.lima } : styles.subTabBase}>
+            Ronda {n} <span style={{ marginLeft: 4, fontSize: '0.75rem', color: enJuego ? C.rojo : jugados === partidos.length ? C.lima : C.tenue }}>{estado}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
