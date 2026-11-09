@@ -8,6 +8,7 @@ const SILENCIO_MAXIMO_MS = 25000;
 export function useTorneoEnVivo(slug) {
   const [datos, setDatos] = useState(null);
   const [conexion, setConexion] = useState('conectando');
+  const [desfase, setDesfase] = useState(0); // hora del servidor − hora local (ms)
 
   useEffect(() => {
     let fuente;
@@ -18,7 +19,11 @@ export function useTorneoEnVivo(slug) {
       ultimoMensaje = Date.now();
       fuente = new EventSource(`/api/torneo/stream?torneo=${encodeURIComponent(slug)}`);
       fuente.onopen = () => setConexion('en-vivo');
-      fuente.addEventListener('latido', () => { ultimoMensaje = Date.now(); });
+      const leerHora = (evento) => {
+        try { const { ahora } = JSON.parse(evento.data); if (ahora) setDesfase(ahora - Date.now()); } catch { /* sin hora */ }
+      };
+      fuente.addEventListener('latido', (evento) => { ultimoMensaje = Date.now(); leerHora(evento); });
+      fuente.addEventListener('hora', leerHora);
       fuente.addEventListener('torneo', (evento) => {
         ultimoMensaje = Date.now();
         setDatos(JSON.parse(evento.data));
@@ -54,5 +59,5 @@ export function useTorneoEnVivo(slug) {
     };
   }, [slug]);
 
-  return { datos, conexion };
+  return { datos, conexion, desfase };
 }

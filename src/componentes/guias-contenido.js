@@ -18,6 +18,7 @@ const MANUAL_ARBITRO = [
       'Toca la mitad de la pantalla de la pareja que gana el punto: suma 1.',
       'Si te equivocas, usa «−» en esa pareja o «Deshacer» para volver atrás la última acción.',
       '«⇄ Lados» invierte las parejas en la pantalla para que coincidan con lo que ves en la cancha.',
+      'El reloj del set arranca con «▶ Empezar set» o con el primer punto. «⏸ Pausa» lo detiene y bloquea los puntos; «▶ Reanudar» continúa. El tiempo de cada set queda guardado y el público lo ve.',
       'Cada toque se guarda solo y aparece al instante en la vista pública. Arriba a la derecha verás «✓ Guardado».',
       'Si aparece «⚠ Sin guardar» es un problema de señal: sigue arbitrando, se reintenta solo con el último marcador.',
     ],
@@ -126,6 +127,7 @@ export const GUIAS = {
     pasos: [
       { selector: '[data-testid="arbitro-sumar-1"]', titulo: 'Sumar un punto', texto: 'Toca la mitad de la pareja que gana el punto. Así de simple.' },
       { selector: '[data-testid="arbitro-restar-1"]', titulo: 'Corregir', texto: 'Si te equivocaste, «−» le quita un punto a esa pareja.' },
+      { selector: '[data-testid="arbitro-reloj"]', titulo: 'Reloj del set', texto: 'Arranca con «▶ Empezar set» o con el primer punto. Con «⏸ Pausa» se detiene y los puntos quedan bloqueados hasta «▶ Reanudar». El público ve el tiempo y si el partido está en juego, pausado o por empezar.' },
       { selector: '[data-testid="arbitro-deshacer"]', titulo: 'Deshacer', texto: 'Vuelve atrás la última acción, incluso un set cerrado por error.' },
       { selector: '[data-guia="arbitro-lados"]', titulo: 'Lados', texto: 'Invierte las parejas en la pantalla para que coincidan con lo que ves en la cancha.' },
       { selector: '[data-testid="arbitro-cerrar-set"]', titulo: 'Cerrar el set', texto: 'Cuando una pareja llega a 15 (21 en la final), este botón se pone verde: tócalo para empezar el siguiente set. Con 2 sets ganados aparece «Finalizar partido».' },

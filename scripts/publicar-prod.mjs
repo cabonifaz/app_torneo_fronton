@@ -42,6 +42,11 @@ try {
     console.log('✓ Migración claves_torneo aplicada');
   } else console.log('· claves_torneo ya estaba aplicada');
 
+  if (!(await columnas('partidos')).includes('reloj_estado')) {
+    await c.query(await readFile('db/migraciones/2026-11-06_reloj_sets.sql', 'utf8'));
+    console.log('✓ Migración reloj_sets aplicada');
+  } else console.log('· reloj_sets ya estaba aplicada');
+
   const [[existe]] = await c.query("SELECT id FROM torneo WHERE slug = 'relampago-45'");
   if (!existe) {
     await c.beginTransaction();

@@ -77,3 +77,19 @@
 
 .terminado { max-width: 520px; margin: 0 auto; padding: 32px 16px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
 .terminadoGanador { font-family: var(--titulo); font-style: italic; font-weight: 800; text-transform: uppercase; font-size: 2rem; color: var(--lima); margin: 0; }
+
+/* ── Reloj del set ── */
+.reloj { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 2px 8px 6px; }
+.relojTiempo { font-family: var(--titulo); font-weight: 800; font-variant-numeric: tabular-nums; font-size: clamp(1.6rem, 6vmin, 2.4rem); line-height: 1; }
+.relojPausado .relojTiempo { color: var(--oro); animation: parpadeo 1.2s ease-in-out infinite; }
+.relojEstado { font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); }
+.relojPausado .relojEstado { color: var(--oro); }
+.relojBoton {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--borde); background: var(--card);
+  color: var(--texto); font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer; touch-action: manipulation;
+}
+.relojBotonEmpezar { background: var(--lima); color: var(--navy); border-color: var(--lima); }
+.ladoBloqueado { opacity: 0.45; cursor: not-allowed; }
+@keyframes parpadeo { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .relojPausado .relojTiempo { animation: none; } }
+.badgePausa { color: var(--oro); }

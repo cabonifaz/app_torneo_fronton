@@ -483,3 +483,8 @@
   .compacta .subtitulo { display: none; }
   .compacta .cabecera { padding: 6px 0; }
 }
+
+/* ── Estado del partido (reloj del árbitro) ── */
+.pausadoBadge { margin-left: 8px; color: var(--oro); }
+.estadoBadge { margin-left: 8px; color: var(--suave); font-weight: 600; letter-spacing: 0.5px; text-transform: none; }
+.partidoContexto { display: flex; flex-wrap: wrap; gap: 2px 0; align-items: baseline; }

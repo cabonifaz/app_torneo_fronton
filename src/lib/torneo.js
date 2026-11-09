@@ -34,7 +34,7 @@ export async function obtenerDatosTorneo(torneoId) {
         p.pareja1_id, pa1.nombre AS nombre_pareja1,
         p.pareja2_id, pa2.nombre AS nombre_pareja2,
         p.puntos_pareja1, p.puntos_pareja2, p.sets_pareja1, p.sets_pareja2, p.detalle_sets,
-        p.jugado, p.en_juego, p.fase, p.actualizado_en
+        p.jugado, p.en_juego, p.reloj_estado, p.reloj_inicio, p.reloj_acumulado, p.duracion_sets, p.fase, p.actualizado_en
       FROM partidos p
       LEFT JOIN grupos g ON p.grupo_id = g.id
       LEFT JOIN parejas pa1 ON p.pareja1_id = pa1.id

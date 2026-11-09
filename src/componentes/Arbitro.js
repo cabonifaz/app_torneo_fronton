@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './arbitro.module.css';
 import { useTorneoEnVivo } from '../lib/useTorneoEnVivo';
-import { reglasFase, marcadorDePartido, ganaPareja1, textoSets, ETIQUETAS_FASE } from '../lib/formatos';
+import { reglasFase, marcadorDePartido, ganaPareja1, textoSets, ETIQUETAS_FASE, tiempoSetActual, formatearTiempo, estadoPartido } from '../lib/formatos';
+import { useAhora } from '../lib/useReloj';
 import { rondaYCancha } from '../lib/relampago';
 import Guia from './Guia';
 
@@ -22,7 +23,7 @@ function contextoPartido(p, datos) {
 }
 
 export default function Arbitro({ torneo }) {
-  const { datos, conexion } = useTorneoEnVivo(torneo.slug);
+  const { datos, conexion, desfase } = useTorneoEnVivo(torneo.slug);
   const [partidoId, setPartidoId] = useState(null);
 
   // El partido elegido se recuerda en la URL (?partido=) para sobrevivir a una recarga accidental
@@ -46,7 +47,7 @@ export default function Arbitro({ torneo }) {
   if (partido) {
     return (
       <div className={s.pagina}>
-        <Marcador key={partido.id} torneo={datos.torneo || torneo} partido={partido} contexto={contextoPartido(partido, datos)} onVolver={() => elegir(null)} />
+        <Marcador key={partido.id} torneo={datos.torneo || torneo} partido={partido} contexto={contextoPartido(partido, datos)} onVolver={() => elegir(null)} desfase={desfase} />
       </div>
     );
   }
@@ -70,7 +71,7 @@ function ListaPartidos({ torneo, datos, onElegir }) {
       className={`${s.itemPartido} ${p.en_juego && !p.jugado ? s.itemEnJuego : ''} ${p.jugado ? s.itemJugado : ''}`}>
       <span className={s.itemContexto}>
         <span>{contextoPartido(p, datos)}</span>
-        {p.en_juego === 1 && !p.jugado && <span className={s.badgeVivo}>● En juego</span>}
+        {p.en_juego === 1 && !p.jugado && <span className={p.reloj_estado === 'pausado' ? s.badgePausa : s.badgeVivo}>{p.reloj_estado === 'pausado' ? '⏸ Pausado' : estadoPartido(p).codigo === 'entre_sets' ? 'Entre sets' : '● En juego'}</span>}
         {p.jugado === 1 && <span>{textoSets(p) || `${p.puntos_pareja1}-${p.puntos_pareja2}`}</span>}
       </span>
       <span className={s.itemVs}>{p.nombre_pareja1}<span>vs</span>{p.nombre_pareja2}</span>
@@ -97,8 +98,9 @@ function ListaPartidos({ torneo, datos, onElegir }) {
   );
 }
 
-function Marcador({ torneo, partido, contexto, onVolver }) {
+function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
   const reglas = reglasFase(torneo.formato, partido.fase);
+  const ahora = useAhora(desfase, partido.reloj_estado === 'en_juego');
   const necesarios = Math.ceil(reglas.mejorDe / 2);
 
   const [estado, setEstado] = useState(() => {
@@ -178,8 +180,18 @@ function Marcador({ torneo, partido, contexto, onVolver }) {
   const lider = actual && actual[0] !== actual[1] ? (actual[0] > actual[1] ? 0 : 1) : null;
   const setListo = lider !== null && actual[lider] >= reglas.puntosSet;
 
+  // Reloj: estado que viene del servidor por la transmisión
+  const corriendo = partido.reloj_estado === 'en_juego';
+  const pausado = partido.reloj_estado === 'pausado';
+  const duraciones = Array.isArray(partido.duracion_sets) ? partido.duracion_sets : [];
+  const accionReloj = async (accion) => {
+    const res = await fetch('/api/partidos', { method: 'PUT', headers: json, body: JSON.stringify({ torneo_id: torneo.id, id: partido.id, reloj: accion }) });
+    if (!res.ok) setMensaje({ tipo: 'error', texto: (await res.json().catch(() => ({}))).error || 'No se pudo cambiar el reloj' });
+  };
+
   const sumar = (lado, delta) => {
     if (!actual) return;
+    if (pausado) { setMensaje({ tipo: 'info', texto: 'El partido está en pausa. Toca «Reanudar» para seguir.' }); return; }
     const nuevo = [...actual];
     nuevo[lado] = Math.max(0, Math.min(99, nuevo[lado] + delta));
     if (nuevo[lado] === actual[lado]) return;
@@ -240,17 +252,35 @@ function Marcador({ torneo, partido, contexto, onVolver }) {
       </div>
 
       <div className={s.sets}>
-        {estado.cerrados.map((x, i) => <span key={i} className={s.setChip}>Set {i + 1}: {x[0]}-{x[1]}</span>)}
-        {actual && <span className={`${s.setChip} ${s.setChipActual}`}>Set {estado.cerrados.length + 1} en juego</span>}
+        {estado.cerrados.map((x, i) => (
+          <span key={i} className={s.setChip}>Set {i + 1}: {x[0]}-{x[1]}{duraciones[i] != null ? ` · ${formatearTiempo(duraciones[i])}` : ''}</span>
+        ))}
+        {actual && <span className={`${s.setChip} ${s.setChipActual}`}>Set {estado.cerrados.length + 1}</span>}
       </div>
+
+      {/* Cronómetro del set en curso: lo lleva el servidor; aquí solo se muestra y se controla */}
+      {actual && (
+        <div className={`${s.reloj} ${pausado ? s.relojPausado : ''}`} data-testid="arbitro-reloj">
+          <div>
+            <div className={s.relojTiempo} data-testid="arbitro-tiempo">{formatearTiempo(tiempoSetActual(partido, ahora))}</div>
+            <div className={s.relojEstado}>{corriendo ? 'Set en juego' : pausado ? 'Pausado' : estado.cerrados.length ? 'Por empezar el siguiente set' : 'Por empezar'}</div>
+          </div>
+          {corriendo
+            ? <button className={s.relojBoton} onClick={() => accionReloj('pausar')} data-testid="arbitro-pausar">⏸ Pausa</button>
+            : <button className={`${s.relojBoton} ${s.relojBotonEmpezar}`} onClick={() => accionReloj(pausado ? 'reanudar' : 'empezar')} data-testid="arbitro-empezar">
+                {pausado ? '▶ Reanudar' : '▶ Empezar set'}
+              </button>}
+        </div>
+      )}
 
       {mensaje && <p className={`${s.aviso} ${mensaje.tipo === 'error' ? s.avisoError : s.avisoInfo}`}>{mensaje.texto}</p>}
       {decidido && <p className={`${s.aviso} ${s.avisoInfo}`}>Partido decidido: {sets1}-{sets2}. Confirma con «Finalizar partido».</p>}
+      {pausado && <p className={`${s.aviso} ${s.avisoInfo}`}>Partido en pausa: los puntos están bloqueados hasta «Reanudar».</p>}
 
       <div className={s.lados}>
         {orden.map(lado => (
-          <div key={lado} role="button" tabIndex={0} aria-disabled={!actual}
-            className={`${s.lado} ${lider === lado ? s.ladoLider : ''}`}
+          <div key={lado} role="button" tabIndex={0} aria-disabled={!actual || pausado}
+            className={`${s.lado} ${lider === lado ? s.ladoLider : ''} ${pausado ? s.ladoBloqueado : ''}`}
             onClick={() => sumar(lado, 1)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sumar(lado, 1); } }}
             data-testid={`arbitro-sumar-${lado + 1}`}>

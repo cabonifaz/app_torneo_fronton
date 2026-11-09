@@ -178,7 +178,11 @@ function TarjetaPartidoInterna({ partido, titulo: tituloPartido, onGuardar, onRe
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h4 style={styles.matchTitle}>
           {tituloPartido}
-          {partido.en_juego === 1 && !jugado && <span style={{ marginLeft: 8, color: C.rojo, fontSize: '0.75rem' }} title="El árbitro está cargando el marcador">● EN JUEGO</span>}
+          {partido.en_juego === 1 && !jugado && (
+            <span style={{ marginLeft: 8, color: partido.reloj_estado === 'pausado' ? C.ambar : C.rojo, fontSize: '0.75rem' }} title="El árbitro está cargando el marcador">
+              {partido.reloj_estado === 'pausado' ? '⏸ PAUSADO' : partido.reloj_estado === 'en_juego' ? '● EN JUEGO' : '● ENTRE SETS'}
+            </span>
+          )}
         </h4>
         <span style={{ fontSize: '0.7rem', color: C.tenue, letterSpacing: '0.5px' }}>
           {Array.from({ length: mejorDe }, (_, i) => `S${i + 1}`).join(' · ')} · a {puntosSet}

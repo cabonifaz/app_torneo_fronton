@@ -137,3 +137,30 @@ export function ganadorPartido(p) {
 export function textoSets(p) {
   return Array.isArray(p.detalle_sets) ? p.detalle_sets.map(([a, b]) => `${a}-${b}`).join(' · ') : '';
 }
+
+// ── Cronómetro por set ──
+// Milisegundos transcurridos del set en curso según los campos del partido y la hora de referencia
+export function tiempoSetActual(p, ahora = Date.now()) {
+  const acumulado = p.reloj_acumulado || 0;
+  return p.reloj_estado === 'en_juego' && p.reloj_inicio ? acumulado + Math.max(0, ahora - Number(p.reloj_inicio)) : acumulado;
+}
+
+export function formatearTiempo(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Estado legible para el público: por empezar / en juego / pausado / entre sets / finalizado
+export function estadoPartido(p, ahora = Date.now()) {
+  if (p.jugado === 1) return { codigo: 'finalizado', texto: 'Finalizado' };
+  if (!p.pareja1_id || !p.pareja2_id) return { codigo: 'por_definir', texto: 'Por definir' };
+  const m = marcadorDePartido(p);
+  const setN = m.cerrados.length + 1;
+  const tiempo = formatearTiempo(tiempoSetActual(p, ahora));
+  if (p.reloj_estado === 'en_juego') return { codigo: 'en_juego', texto: `En juego · Set ${setN} · ${tiempo}`, tiempo, setN };
+  if (p.reloj_estado === 'pausado') return { codigo: 'pausado', texto: `Pausado · Set ${setN} · ${tiempo}`, tiempo, setN };
+  if (p.reloj_estado === 'entre_sets' || m.cerrados.length > 0) return { codigo: 'entre_sets', texto: `Set ${m.cerrados.length} terminado · por empezar el set ${setN}`, setN };
+  return { codigo: 'por_empezar', texto: 'Por empezar', setN };
+}

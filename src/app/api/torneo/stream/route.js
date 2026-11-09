@@ -25,7 +25,8 @@ export async function GET(request) {
       escribir('retry: 3000\n\n');
 
       let desuscribir = () => {};
-      const latido = setInterval(() => escribir('event: latido\ndata: {}\n\n'), LATIDO_MS);
+      // El latido lleva la hora del servidor: los relojes de los sets se calculan con ella, no con la del celular
+      const latido = setInterval(() => escribir(`event: latido\ndata: {"ahora":${Date.now()}}\n\n`), LATIDO_MS);
       cancelar = () => {
         clearInterval(latido);
         desuscribir();
@@ -34,7 +35,7 @@ export async function GET(request) {
       request.signal.addEventListener('abort', () => cancelar());
 
       try {
-        desuscribir = await suscribir(torneo.id, (json) => escribir(`event: torneo\ndata: ${json}\n\n`));
+        desuscribir = await suscribir(torneo.id, (json) => escribir(`event: hora\ndata: {"ahora":${Date.now()}}\n\nevent: torneo\ndata: ${json}\n\n`));
         if (request.signal.aborted) cancelar();
       } catch (error) {
         console.error('[en-vivo] Error al suscribir:', error.message);

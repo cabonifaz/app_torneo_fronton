@@ -1,10 +1,12 @@
 "use client";
 // Vista pública de solo lectura con actualización en tiempo real (Server-Sent Events)
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import s from './en-vivo.module.css';
 import { FASES, resumenTorneo, tablaGrupo, ordenarPartidosGrupo } from '../../lib/torneo-calculos';
 import { ETIQUETAS_FASE, FORMATOS, ganaPareja1, marcadorDePartido } from '../../lib/formatos';
 import { resumenRelampago } from '../../lib/relampago';
+import { useAhora } from '../../lib/useReloj';
+import { estadoPartido, formatearTiempo } from '../../lib/formatos';
 
 const PESTANAS = {
   ranked16: [
@@ -27,12 +29,18 @@ const SILENCIO_MAXIMO_MS = 25000;
 // Firma de lo que el público ve de un partido: si cambia, el partido "destella"
 const firma = p => `${p.pareja1_id}|${p.pareja2_id}|${p.puntos_pareja1}|${p.puntos_pareja2}|${p.jugado}|${JSON.stringify(p.detalle_sets)}`;
 
+// Hora de referencia compartida por todas las tarjetas de partido (evita pasar `ahora` por todas las props)
+const ContextoAhora = createContext(Date.now());
+
 export default function EnVivo({ slug }) {
   const [datos, setDatos] = useState(null);
   const [conexion, setConexion] = useState('conectando');
   const [pestana, setPestana] = useState('resumen');
   const [recientes, setRecientes] = useState(() => new Set());
+  const [desfase, setDesfase] = useState(0);
   const firmas = useRef(new Map());
+  // Reloj que avanza solo mientras haya algún set corriendo
+  const ahora = useAhora(desfase, !!datos?.partidos.some(p => p.reloj_estado === 'en_juego' && !p.jugado));
   const temporizadorDestello = useRef(null);
 
   useEffect(() => {
@@ -58,7 +66,12 @@ export default function EnVivo({ slug }) {
       ultimoMensaje = Date.now();
       fuente = new EventSource(`/api/torneo/stream?torneo=${encodeURIComponent(slug)}`);
       fuente.onopen = () => setConexion('en-vivo');
-      fuente.addEventListener('latido', () => { ultimoMensaje = Date.now(); });
+      // Hora del servidor para los cronómetros de los sets (corrige el reloj del dispositivo)
+      const leerHora = (evento) => {
+        try { const { ahora } = JSON.parse(evento.data); if (ahora) setDesfase(ahora - Date.now()); } catch { /* sin hora */ }
+      };
+      fuente.addEventListener('latido', (evento) => { ultimoMensaje = Date.now(); leerHora(evento); });
+      fuente.addEventListener('hora', leerHora);
       fuente.addEventListener('torneo', (evento) => {
         ultimoMensaje = Date.now();
         const nuevo = JSON.parse(evento.data);
@@ -110,6 +123,7 @@ export default function EnVivo({ slug }) {
   const organizador = datos.torneo?.organizador;
 
   return (
+    <ContextoAhora.Provider value={ahora}>
     <div className={esRelampago ? `${s.pagina} ${s.compacta}` : s.pagina}>
       <header className={s.cabecera}>
         <img src="/brand/ranked-wordmark.png" alt="Ranked" className={s.logo} />
@@ -143,6 +157,7 @@ export default function EnVivo({ slug }) {
         Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener">Geeky Tech</a>
       </footer>
     </div>
+    </ContextoAhora.Provider>
   );
 }
 
@@ -372,6 +387,7 @@ function tituloPartido(p) {
 }
 
 function Partido({ p, contexto = false, reciente = false }) {
+  const ahora = useContext(ContextoAhora);
   const definido = p.pareja1_id && p.pareja2_id;
   const gana1 = p.jugado && ganaPareja1(p);
   const gana2 = p.jugado && !gana1;
@@ -380,6 +396,9 @@ function Partido({ p, contexto = false, reciente = false }) {
   // En partidos a sets: puntos de cada set (resaltando los ganados) y, en grande, los sets ganados
   const enJuego = !p.jugado && p.en_juego === 1;
   const vivo = enJuego ? marcadorDePartido(p) : null;
+  // Estado y cronómetro del set (solo en formatos a sets, donde el árbitro lleva el reloj)
+  const estado = definido ? estadoPartido(p, ahora) : null;
+  const duraciones = Array.isArray(p.duracion_sets) && p.duracion_sets.length ? p.duracion_sets : null;
 
   const marcador = (lado) => {
     if (enJuego) {
@@ -409,10 +428,18 @@ function Partido({ p, contexto = false, reciente = false }) {
 
   return (
     <li className={`${s.partido} ${reciente ? s.reciente : ''}`}>
-      {(contexto || enJuego) && (
+      {(contexto || estado) && (
         <span className={s.partidoContexto}>
           {contexto && tituloPartido(p)}
-          {enJuego && <span className={s.enJuegoBadge}>● En juego{vivo.actual ? ` · Set ${vivo.cerrados.length + 1}` : ''}</span>}
+          {estado?.codigo === 'en_juego' && <span className={s.enJuegoBadge} data-testid="estado-partido">● {estado.texto}</span>}
+          {estado?.codigo === 'pausado' && <span className={s.pausadoBadge} data-testid="estado-partido">⏸ {estado.texto}</span>}
+          {estado?.codigo === 'entre_sets' && <span className={s.estadoBadge} data-testid="estado-partido">{estado.texto}</span>}
+          {estado?.codigo === 'por_empezar' && contexto && <span className={s.estadoBadge} data-testid="estado-partido">Por empezar</span>}
+          {estado?.codigo === 'finalizado' && duraciones && (
+            <span className={s.estadoBadge} data-testid="estado-partido" title="Duración de cada set">
+              Finalizado · {duraciones.map(formatearTiempo).join(' + ')}
+            </span>
+          )}
         </span>
       )}
       {definido ? (
