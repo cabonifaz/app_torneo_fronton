@@ -48,7 +48,7 @@ export async function PUT(request) {
       [id, torneo.id]
     );
     if (!partido) return error('Partido no encontrado en este torneo', 404);
-    const reglas = reglasFase(torneo.formato, partido.fase);
+    const reglas = reglasFase(torneo, partido.fase);
     const ahora = Date.now();
 
     if (reloj !== undefined) {

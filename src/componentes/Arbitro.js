@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './arbitro.module.css';
 import { useTorneoEnVivo } from '../lib/useTorneoEnVivo';
-import { reglasFase, marcadorDePartido, ganaPareja1, textoSets, ETIQUETAS_FASE, tiempoSetActual, formatearTiempo, estadoPartido } from '../lib/formatos';
+import { reglasFase, marcadorDePartido, ganaPareja1, textoSets, ETIQUETAS_FASE, tiempoSetActual, formatearTiempo, estadoPartido, situacionSet, textoSituacion, textoReglas, textoCierre } from '../lib/formatos';
 import { useAhora } from '../lib/useReloj';
 import { rondaYCancha } from '../lib/relampago';
 import Guia from './Guia';
@@ -99,7 +99,8 @@ function ListaPartidos({ torneo, datos, onElegir }) {
 }
 
 function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
-  const reglas = reglasFase(torneo.formato, partido.fase);
+  // Reglas vigentes de la fase (el admin puede cambiarlas durante el torneo: llegan por la transmisión)
+  const reglas = reglasFase(torneo, partido.fase);
   const ahora = useAhora(desfase, partido.reloj_estado === 'en_juego');
   const necesarios = Math.ceil(reglas.mejorDe / 2);
 
@@ -178,11 +179,15 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
   const decidido = sets1 >= necesarios || sets2 >= necesarios;
   const actual = estado.actual;
   const lider = actual && actual[0] !== actual[1] ? (actual[0] > actual[1] ? 0 : 1) : null;
-  const setListo = lider !== null && actual[lider] >= reglas.puntosSet;
+  // Situación del set según la regla de la fase: punto de set / de partido, iguales, set ganado
+  const situacion = actual ? situacionSet(actual, reglas, [sets1, sets2]) : null;
+  const setListo = situacion?.codigo === 'ganado';
+  const nombres = [partido.nombre_pareja1, partido.nombre_pareja2];
 
   // Reloj: estado que viene del servidor por la transmisión
   const corriendo = partido.reloj_estado === 'en_juego';
   const pausado = partido.reloj_estado === 'pausado';
+  const sinEmpezar = !corriendo && !pausado && estado.cerrados.length === 0 && !!actual && actual[0] === 0 && actual[1] === 0;
   const duraciones = Array.isArray(partido.duracion_sets) ? partido.duracion_sets : [];
   const accionReloj = async (accion) => {
     const res = await fetch('/api/partidos', { method: 'PUT', headers: json, body: JSON.stringify({ torneo_id: torneo.id, id: partido.id, reloj: accion }) });
@@ -192,6 +197,7 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
   const sumar = (lado, delta) => {
     if (!actual) return;
     if (pausado) { setMensaje({ tipo: 'info', texto: 'El partido está en pausa. Toca «Reanudar» para seguir.' }); return; }
+    if (setListo && delta > 0) { setMensaje({ tipo: 'info', texto: `El set ya está ganado ${actual[0]}-${actual[1]}: toca «Cerrar set». Si fue un error, resta el punto con «−».` }); return; }
     const nuevo = [...actual];
     nuevo[lado] = Math.max(0, Math.min(99, nuevo[lado] + delta));
     if (nuevo[lado] === actual[lado]) return;
@@ -200,7 +206,7 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
 
   const cerrarSet = () => {
     if (lider === null) return;
-    if (!setListo && !confirm(`Nadie llegó a ${reglas.puntosSet}. ¿Cerrar el set ${actual[0]}-${actual[1]} igual?`)) return;
+    if (!setListo && !confirm(`Nadie ganó el set todavía (es ${textoCierre(reglas)}). ¿Cerrar el set ${actual[0]}-${actual[1]} igual?`)) return;
     const cerrados = [...estado.cerrados, actual];
     const g1 = cerrados.filter(x => x[0] > x[1]).length;
     const g2 = cerrados.filter(x => x[1] > x[0]).length;
@@ -234,7 +240,6 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
     );
   }
 
-  const nombres = [partido.nombre_pareja1, partido.nombre_pareja2];
   const setsLado = [sets1, sets2];
   const orden = invertido ? [1, 0] : [0, 1];
 
@@ -244,7 +249,7 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
         <button className={s.volver} onClick={onVolver} aria-label="Volver a los partidos">‹ Partidos</button>
         <div className={s.barraCentro}>
           <p className={s.barraTitulo}>{contexto}</p>
-          <p className={s.barraSub}>Mejor de {reglas.mejorDe} · sets a {reglas.puntosSet}</p>
+          <p className={s.barraSub} data-testid="arbitro-reglas">{textoReglas(reglas)}</p>
         </div>
         <span className={`${s.estado} ${guardado === 'ok' ? s.estadoOk : guardado === 'guardando' ? s.estadoGuardando : s.estadoError}`} role="status" data-testid="arbitro-estado">
           {guardado === 'ok' ? '✓ Guardado' : guardado === 'guardando' ? 'Guardando…' : '⚠ Sin guardar'}
@@ -276,6 +281,15 @@ function Marcador({ torneo, partido, contexto, onVolver, desfase = 0 }) {
       {mensaje && <p className={`${s.aviso} ${mensaje.tipo === 'error' ? s.avisoError : s.avisoInfo}`}>{mensaje.texto}</p>}
       {decidido && <p className={`${s.aviso} ${s.avisoInfo}`}>Partido decidido: {sets1}-{sets2}. Confirma con «Finalizar partido».</p>}
       {pausado && <p className={`${s.aviso} ${s.avisoInfo}`}>Partido en pausa: los puntos están bloqueados hasta «Reanudar».</p>}
+      {sinEmpezar && !mensaje && (
+        <p className={`${s.aviso} ${s.avisoInfo}`} data-testid="arbitro-regla">Regla del set: {textoCierre(reglas)}. Suma el primer punto o toca «▶ Empezar set».</p>
+      )}
+      {situacion && (
+        <p role="status" data-testid="arbitro-situacion"
+          className={`${s.situacion} ${situacion.codigo === 'ganado' ? s.situacionGanado : situacion.codigo === 'punto' ? s.situacionPunto : s.situacionIguales}`}>
+          {textoSituacion(situacion, nombres)}{situacion.codigo === 'ganado' ? ' → «Cerrar set»' : ''}
+        </p>
+      )}
 
       <div className={s.lados}>
         {orden.map(lado => (

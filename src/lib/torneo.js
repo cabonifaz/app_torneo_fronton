@@ -1,6 +1,6 @@
 import pool from './db.js';
 
-const COLUMNAS_TORNEO = 'id, slug, nombre, subtitulo, formato, organizador, es_prueba';
+const COLUMNAS_TORNEO = 'id, slug, nombre, subtitulo, formato, reglas, organizador, es_prueba';
 
 // Torneos para el selector (los de prueba solo si se piden)
 export async function listarTorneos({ incluirPruebas = false } = {}) {

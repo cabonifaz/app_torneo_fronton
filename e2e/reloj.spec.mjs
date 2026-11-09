@@ -18,7 +18,7 @@ test('el reloj arranca con el primer punto, se pausa, se reanuda y guarda la dur
   await publico.goto(`/t/${torneo.slug}`);
   await publico.getByRole('button', { name: 'Partidos' }).click();
   const tarjeta = publico.locator('li', { hasText: partido.nombre_pareja1 }).first();
-  await expect(tarjeta.getByTestId('estado-partido')).toHaveText('Por empezar');
+  await expect(tarjeta.getByTestId('estado-partido')).toContainText('Por empezar');
 
   await page.goto(`/t/${torneo.slug}/arbitro?partido=${partido.id}`);
   await expect(page.getByTestId('arbitro-tiempo')).toHaveText('0:00');

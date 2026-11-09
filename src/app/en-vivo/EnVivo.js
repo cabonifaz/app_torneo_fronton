@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import s from './en-vivo.module.css';
 import { FASES, resumenTorneo, tablaGrupo, ordenarPartidosGrupo } from '../../lib/torneo-calculos';
-import { ETIQUETAS_FASE, FORMATOS, ganaPareja1, marcadorDePartido } from '../../lib/formatos';
+import { ETIQUETAS_FASE, FORMATOS, ganaPareja1, marcadorDePartido, reglasFase, textoReglas, textoCierre, textoSituacion } from '../../lib/formatos';
 import { resumenRelampago } from '../../lib/relampago';
 import { useAhora } from '../../lib/useReloj';
 import { estadoPartido, formatearTiempo } from '../../lib/formatos';
@@ -31,6 +31,8 @@ const firma = p => `${p.pareja1_id}|${p.pareja2_id}|${p.puntos_pareja1}|${p.punt
 
 // Hora de referencia compartida por todas las tarjetas de partido (evita pasar `ahora` por todas las props)
 const ContextoAhora = createContext(Date.now());
+// Torneo (con sus reglas por fase) para que cada tarjeta sepa cómo se cierra el set
+const ContextoTorneo = createContext(null);
 
 export default function EnVivo({ slug }) {
   const [datos, setDatos] = useState(null);
@@ -124,6 +126,7 @@ export default function EnVivo({ slug }) {
 
   return (
     <ContextoAhora.Provider value={ahora}>
+    <ContextoTorneo.Provider value={datos.torneo || null}>
     <div className={esRelampago ? `${s.pagina} ${s.compacta}` : s.pagina}>
       <header className={s.cabecera}>
         <img src="/brand/ranked-wordmark.png" alt="Ranked" className={s.logo} />
@@ -157,6 +160,7 @@ export default function EnVivo({ slug }) {
         Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener">Geeky Tech</a>
       </footer>
     </div>
+    </ContextoTorneo.Provider>
     </ContextoAhora.Provider>
   );
 }
@@ -180,7 +184,6 @@ function CuerpoRanked16({ datos, pestana, recientes }) {
 // ── Formato Relámpago: 4 parejas todos contra todos + final ──
 function CuerpoRelampago({ datos, pestana, recientes }) {
   const r = resumenRelampago(datos);
-  const F = FORMATOS.relampago4;
   const porcentaje = r.progreso.total ? Math.round((r.progreso.jugados / r.progreso.total) * 100) : 0;
   const proximaRonda = r.proximos[0]?.ronda;
 
@@ -214,7 +217,7 @@ function CuerpoRelampago({ datos, pestana, recientes }) {
         {r.campeon && <Campeon campeon={r.campeon} final={r.final} foto={datos.foto} />}
         <section className={s.tarjeta}>
           <h2 className={s.tarjetaTitulo}>Gran Final</h2>
-          <p className={s.nota}>1° vs 2° de la tabla · Mejor de {F.fases.final.mejorDe} sets a {F.fases.final.puntosSet}</p>
+          <p className={s.nota}>1° vs 2° de la tabla · {textoReglas(reglasFase(datos.torneo, 'final'))}</p>
           {r.final
             ? <ul className={s.listaPartidos}><Partido p={r.final} reciente={recientes.has(r.final.id)} /></ul>
             : (
@@ -388,6 +391,7 @@ function tituloPartido(p) {
 
 function Partido({ p, contexto = false, reciente = false }) {
   const ahora = useContext(ContextoAhora);
+  const torneo = useContext(ContextoTorneo);
   const definido = p.pareja1_id && p.pareja2_id;
   const gana1 = p.jugado && ganaPareja1(p);
   const gana2 = p.jugado && !gana1;
@@ -397,7 +401,8 @@ function Partido({ p, contexto = false, reciente = false }) {
   const enJuego = !p.jugado && p.en_juego === 1;
   const vivo = enJuego ? marcadorDePartido(p) : null;
   // Estado y cronómetro del set (solo en formatos a sets, donde el árbitro lleva el reloj)
-  const estado = definido ? estadoPartido(p, ahora) : null;
+  const estado = definido ? estadoPartido(p, ahora, torneo) : null;
+  const vivoConSituacion = estado?.situacion && (estado.codigo === 'en_juego' || estado.codigo === 'pausado');
   const duraciones = Array.isArray(p.duracion_sets) && p.duracion_sets.length ? p.duracion_sets : null;
 
   const marcador = (lado) => {
@@ -434,7 +439,14 @@ function Partido({ p, contexto = false, reciente = false }) {
           {estado?.codigo === 'en_juego' && <span className={s.enJuegoBadge} data-testid="estado-partido">● {estado.texto}</span>}
           {estado?.codigo === 'pausado' && <span className={s.pausadoBadge} data-testid="estado-partido">⏸ {estado.texto}</span>}
           {estado?.codigo === 'entre_sets' && <span className={s.estadoBadge} data-testid="estado-partido">{estado.texto}</span>}
-          {estado?.codigo === 'por_empezar' && contexto && <span className={s.estadoBadge} data-testid="estado-partido">Por empezar</span>}
+          {vivoConSituacion && (
+            <span className={`${s.situacionBadge} ${estado.situacion.codigo === 'ganado' ? s.situacionGanada : ''}`} data-testid="situacion-partido">
+              {textoSituacion(estado.situacion, [p.nombre_pareja1, p.nombre_pareja2])}
+            </span>
+          )}
+          {estado?.codigo === 'por_empezar' && contexto && (
+            <span className={s.estadoBadge} data-testid="estado-partido">Por empezar{estado.reglas ? ` · ${textoCierre(estado.reglas)}` : ''}</span>
+          )}
           {estado?.codigo === 'finalizado' && duraciones && (
             <span className={s.estadoBadge} data-testid="estado-partido" title="Duración de cada set">
               Finalizado · {duraciones.map(formatearTiempo).join(' + ')}

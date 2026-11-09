@@ -62,7 +62,7 @@ export class ErrorPlayground extends Error {
 }
 
 async function guardarResultado(torneo, partido, sets) {
-  const v = validarSets(sets, reglasFase(torneo.formato, partido.fase));
+  const v = validarSets(sets, reglasFase(torneo, partido.fase));
   if (v.error) throw new ErrorPlayground(`Partido ${partido.id}: ${v.error}`);
   await pool.query(
     'UPDATE partidos SET puntos_pareja1 = ?, puntos_pareja2 = ?, sets_pareja1 = ?, sets_pareja2 = ?, detalle_sets = ?, jugado = 1 WHERE id = ? AND torneo_id = ?',
@@ -109,12 +109,12 @@ async function ejecutar({ accion, torneo_id, parejas }) {
   switch (accion) {
     case 'simular_ronda': {
       if (!r.proximos.length || r.faseActual !== 'liga') throw new ErrorPlayground('No quedan rondas pendientes en la liga');
-      for (const p of r.proximos) await guardarResultado(torneo, p, resultadoAleatorio(reglasFase(torneo.formato, 'liga')));
+      for (const p of r.proximos) await guardarResultado(torneo, p, resultadoAleatorio(reglasFase(torneo, 'liga')));
       return { mensaje: `Ronda ${r.proximos[0].ronda} simulada` };
     }
     case 'simular_liga': {
       const pendientes = liga.filter(p => !p.jugado);
-      for (const p of pendientes) await guardarResultado(torneo, p, resultadoAleatorio(reglasFase(torneo.formato, 'liga')));
+      for (const p of pendientes) await guardarResultado(torneo, p, resultadoAleatorio(reglasFase(torneo, 'liga')));
       return { mensaje: `${pendientes.length} partidos simulados` };
     }
     case 'escenario_desempate':
@@ -137,7 +137,7 @@ async function ejecutar({ accion, torneo_id, parejas }) {
     case 'simular_final': {
       const final = datos.partidos.find(p => p.fase === 'final');
       if (!r.ligaTerminada || !final) throw new ErrorPlayground('Primero termina la liga y arma la final');
-      await guardarResultado(torneo, final, resultadoAleatorio(reglasFase(torneo.formato, 'final')));
+      await guardarResultado(torneo, final, resultadoAleatorio(reglasFase(torneo, 'final')));
       return { mensaje: 'Final simulada' };
     }
     case 'reiniciar': {

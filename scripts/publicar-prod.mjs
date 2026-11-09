@@ -1,5 +1,5 @@
 // Prepara la BD de producción para la versión multi-torneo. Idempotente: se puede ejecutar varias veces.
-//  1. Aplica las migraciones 2026-11-06 si faltan (no borran datos; el torneo actual queda como torneo 1).
+//  1. Aplica las migraciones pendientes si faltan (no borran datos; el torneo actual queda como torneo 1).
 //  2. Crea el Campeonato Relámpago (slug relampago-45) si no existe.
 //  3. Fija las claves de admin y árbitro de ambos torneos.
 //
@@ -46,6 +46,11 @@ try {
     await c.query(await readFile('db/migraciones/2026-11-06_reloj_sets.sql', 'utf8'));
     console.log('✓ Migración reloj_sets aplicada');
   } else console.log('· reloj_sets ya estaba aplicada');
+
+  if (!(await columnas('torneo')).includes('reglas')) {
+    await c.query(await readFile('db/migraciones/2026-11-09_reglas_torneo.sql', 'utf8'));
+    console.log('✓ Migración reglas_torneo aplicada');
+  } else console.log('· reglas_torneo ya estaba aplicada');
 
   const [[existe]] = await c.query("SELECT id FROM torneo WHERE slug = 'relampago-45'");
   if (!existe) {

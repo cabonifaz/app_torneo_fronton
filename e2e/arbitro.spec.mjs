@@ -29,13 +29,24 @@ test('el árbitro lleva un partido y la vista pública lo ve en vivo', async ({ 
   const partido = partidos.find(p => p.fase === 'liga');
   await page.getByTestId(`arbitro-partido-${partido.id}`).click();
 
+  // Al empezar se ve la regla del set de la fase
+  await expect(page.getByTestId('arbitro-reglas')).toHaveText('Mejor de 3 sets a 15, gana el primero que llega');
+  await expect(page.getByTestId('arbitro-regla')).toContainText('a 15, gana el primero que llega');
+
   // Set 1: 15-9 con un error corregido con "−" y otro con "Deshacer"
-  await sumar(page, 1, 15);
   await sumar(page, 2, 10);
   await page.getByTestId('arbitro-restar-2').click();
   await expect(page.getByTestId('arbitro-puntos-2')).toHaveText('9');
+  await sumar(page, 1, 14);
+  await expect(page.getByTestId('arbitro-situacion')).toHaveText(`Punto de set · ${PAREJAS[0]}`);
   await sumar(page, 1, 1);
+  await expect(page.getByTestId('arbitro-situacion')).toContainText(`Set ganado · ${PAREJAS[0]}`);
   await page.getByTestId('arbitro-deshacer').click();
+  await expect(page.getByTestId('arbitro-puntos-1')).toHaveText('14');
+  await sumar(page, 1, 1);
+  await expect(page.getByTestId('arbitro-puntos-1')).toHaveText('15');
+  // Con el set ganado (regla seca: a 15) no se puede seguir sumando
+  await sumar(page, 1, 1);
   await expect(page.getByTestId('arbitro-puntos-1')).toHaveText('15');
   await expect(page.getByTestId('arbitro-estado')).toHaveText('✓ Guardado');
 

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 
 import { C, styles } from './admin-estilos';
 import CabeceraAdmin from './CabeceraAdmin';
+import EditorReglas from './EditorReglas';
 
 // Formato Ranked 16 parejas (Campeonato Mary): todos los partidos a set único de 21
 const PUNTOS_SET = 21;
@@ -865,6 +866,7 @@ const tablaGeneral = [...data.posiciones]
           </ul>
         </section>
       )}
+      {tab === 'reglas' && <EditorReglas torneo={data.torneo || torneo} />}
 
       <footer style={styles.footer}>
         <span>Powered by <a href="https://geeky-tech.es" target="_blank" rel="noopener" style={styles.footerLink}>Geeky Tech</a></span>

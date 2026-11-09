@@ -5,7 +5,8 @@ import { C, styles, titulo, boton } from './admin-estilos';
 import CabeceraAdmin from './CabeceraAdmin';
 import { useTorneoEnVivo } from '../lib/useTorneoEnVivo';
 import Guia from './Guia';
-import { FORMATOS, reglasFase, validarSets, ganaPareja1, textoSets } from '../lib/formatos';
+import EditorReglas from './EditorReglas';
+import { FORMATOS, reglasFase, validarSets, ganaPareja1, textoSets, textoReglas, textoCierreCorto } from '../lib/formatos';
 import { resumenRelampago } from '../lib/relampago';
 
 const F = FORMATOS.relampago4;
@@ -18,6 +19,8 @@ export default function AdminRelampago({ torneo, torneos }) {
   const [ronda, setRonda] = useState(null);
   const [fotoSubida, setFotoUrl] = useState(undefined); // undefined = usar la de la transmisión
   const fotoUrl = fotoSubida === undefined ? data?.foto ?? null : fotoSubida;
+  // El torneo de la transmisión trae las reglas vigentes (pueden cambiar desde otro dispositivo)
+  const t = data?.torneo || torneo;
 
   // Devuelve true si la operación se guardó; el nuevo estado llega por la transmisión
   const enviar = async (method, payload) => {
@@ -48,7 +51,7 @@ export default function AdminRelampago({ torneo, torneos }) {
   );
 
   const guardarSets = async (partido, sets) => {
-    const v = validarSets(sets, reglasFase('relampago4', partido.fase));
+    const v = validarSets(sets, reglasFase(t, partido.fase));
     if (v.error) { alert(v.error); return false; }
     if (v.avisos.length && !confirm(`${v.avisos.join('\n')}\n\n¿Guardar igual?`)) return false;
     if (!confirmarSiFinalArmada(partido)) return false;
@@ -61,7 +64,7 @@ export default function AdminRelampago({ torneo, torneos }) {
 
   return (
     <div style={styles.container}>
-      <CabeceraAdmin torneo={data.torneo || torneo} torneos={torneos} />
+      <CabeceraAdmin torneo={t} torneos={torneos} />
 
       <nav className="tabs-scroll" style={styles.tabsContainer}>
         {[['partidos', 'Partidos'], ['tabla', 'Tabla'], ['final', 'Final'], ['parejas', 'Parejas'], ['reglas', 'Reglas']].map(([id, etiqueta]) => (
@@ -75,11 +78,11 @@ export default function AdminRelampago({ torneo, torneos }) {
           <SelectorRonda r={r} ronda={rondaVisible} onElegir={setRonda} />
           <div style={styles.matchesGrid}>
             {r.liga.filter(p => p.ronda === rondaVisible).map(p => (
-              <TarjetaPartido key={p.id} partido={p} titulo={`Cancha ${p.cancha}`} onGuardar={guardarSets} onReset={resetearPartido} />
+              <TarjetaPartido key={p.id} partido={p} torneo={t} titulo={`Cancha ${p.cancha}`} onGuardar={guardarSets} onReset={resetearPartido} />
             ))}
           </div>
           <p style={{ ...styles.faseInfo, textAlign: 'center', margin: '10px 0 0' }}>
-            {r.progreso.jugados} de {r.progreso.total} jugados · Mejor de {F.fases.liga.mejorDe} sets a {F.fases.liga.puntosSet}
+            {r.progreso.jugados} de {r.progreso.total} jugados · {textoReglas(reglasFase(t, 'liga'))}
           </p>
         </>
       )}
@@ -93,12 +96,12 @@ export default function AdminRelampago({ torneo, torneos }) {
 
       {tab === 'final' && (
         <SeccionFinal r={r} partidoFinal={partidoFinal} parejas={r.tabla} onArmar={armarFinal} onResetear={resetearFinal}
-          onGuardar={guardarSets} onReset={resetearPartido} torneoId={torneo.id} fotoUrl={fotoUrl} setFotoUrl={setFotoUrl} />
+          onGuardar={guardarSets} onReset={resetearPartido} torneo={t} fotoUrl={fotoUrl} setFotoUrl={setFotoUrl} />
       )}
 
       {tab === 'parejas' && <EditorParejas torneoId={torneo.id} parejas={r.tabla} onCambio={cargarDatos} />}
 
-      {tab === 'reglas' && <Reglas />}
+      {tab === 'reglas' && <><Reglas torneo={t} /><EditorReglas torneo={t} /></>}
 
       <Guia id="admin-relampago" />
       <footer style={styles.footer}>
@@ -130,13 +133,14 @@ function SelectorRonda({ r, ronda, onElegir }) {
 
 // Tarjeta de partido al mejor de 3: el estado local se reinicia cuando cambia el resultado guardado
 // (p. ej. lo corrige otro dispositivo), sin pisar lo que se está escribiendo mientras tanto
-function TarjetaPartido({ partido, titulo: tituloPartido, onGuardar, onReset }) {
-  const firma = `${partido.id}-${partido.jugado}-${JSON.stringify(partido.detalle_sets)}`;
-  return <TarjetaPartidoInterna key={firma} partido={partido} titulo={tituloPartido} onGuardar={onGuardar} onReset={onReset} />;
+function TarjetaPartido({ partido, torneo, titulo: tituloPartido, onGuardar, onReset }) {
+  const reglas = reglasFase(torneo, partido.fase);
+  const firma = `${partido.id}-${partido.jugado}-${JSON.stringify(partido.detalle_sets)}-${reglas.mejorDe}`;
+  return <TarjetaPartidoInterna key={firma} partido={partido} reglas={reglas} titulo={tituloPartido} onGuardar={onGuardar} onReset={onReset} />;
 }
 
-function TarjetaPartidoInterna({ partido, titulo: tituloPartido, onGuardar, onReset }) {
-  const { mejorDe, puntosSet } = reglasFase('relampago4', partido.fase);
+function TarjetaPartidoInterna({ partido, reglas, titulo: tituloPartido, onGuardar, onReset }) {
+  const { mejorDe } = reglas;
   const inicial = Array.from({ length: mejorDe }, (_, i) => partido.detalle_sets?.[i]?.map(String) || ['', '']);
   const [sets, setSets] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
@@ -185,7 +189,7 @@ function TarjetaPartidoInterna({ partido, titulo: tituloPartido, onGuardar, onRe
           )}
         </h4>
         <span style={{ fontSize: '0.7rem', color: C.tenue, letterSpacing: '0.5px' }}>
-          {Array.from({ length: mejorDe }, (_, i) => `S${i + 1}`).join(' · ')} · a {puntosSet}
+          {Array.from({ length: mejorDe }, (_, i) => `S${i + 1}`).join(' · ')} · {textoCierreCorto(reglas)}
         </span>
       </div>
       <div style={styles.matchTeams}>
@@ -269,7 +273,8 @@ function TablaLiga({ r }) {
 
 const signo = n => (n > 0 ? `+${n}` : String(n));
 
-function SeccionFinal({ r, partidoFinal, parejas, onArmar, onResetear, onGuardar, onReset, torneoId, fotoUrl, setFotoUrl }) {
+function SeccionFinal({ r, partidoFinal, parejas, onArmar, onResetear, onGuardar, onReset, torneo, fotoUrl, setFotoUrl }) {
+  const torneoId = torneo.id;
   if (!r.ligaTerminada) {
     return (
       <>
@@ -292,7 +297,7 @@ function SeccionFinal({ r, partidoFinal, parejas, onArmar, onResetear, onGuardar
   return (
     <section style={{ ...styles.groupCard, border: `2px solid ${C.oro}` }}>
       <h2 style={{ ...styles.groupTitle, color: C.oro, textAlign: 'center', marginBottom: '4px' }}>🏆 La Gran Final</h2>
-      <p style={{ ...styles.faseInfo, textAlign: 'center' }}>1° vs 2° de la tabla · Mejor de {F.fases.final.mejorDe} sets a {F.fases.final.puntosSet}</p>
+      <p style={{ ...styles.faseInfo, textAlign: 'center' }}>1° vs 2° de la tabla · {textoReglas(reglasFase(torneo, 'final'))}</p>
 
       {!partidoFinal && (r.corteEmpatado
         ? <ElegirFinalistas parejas={parejas} onArmar={onArmar} />
@@ -308,7 +313,7 @@ function SeccionFinal({ r, partidoFinal, parejas, onArmar, onResetear, onGuardar
       {partidoFinal && (
         <>
           <div style={styles.matchesGrid}>
-            <TarjetaPartido partido={partidoFinal} titulo="Partido por el campeonato" onGuardar={onGuardar} onReset={onReset} />
+            <TarjetaPartido partido={partidoFinal} torneo={torneo} titulo="Partido por el campeonato" onGuardar={onGuardar} onReset={onReset} />
           </div>
           <div style={{ marginTop: '16px', textAlign: 'center' }}>
             <button onClick={onResetear} style={styles.btnResetFase}>🗑️ Resetear Gran Final</button>
@@ -433,11 +438,11 @@ function FilaPareja({ numero, pareja, torneoId, onCambio }) {
   );
 }
 
-export function Reglas() {
+export function Reglas({ torneo }) {
   const reglas = [
     ['Formato', 'Dos canchas en simultáneo. Todos contra todos: cada pareja juega 3 partidos.'],
     ['Puntaje', `Partido ganado: ${F.puntosVictoria} puntos. Partido perdido: ${F.puntosDerrota} puntos.`],
-    ['Sets', `Todos contra todos: al mejor de ${F.fases.liga.mejorDe} sets a ${F.fases.liga.puntosSet} puntos. La final: al mejor de ${F.fases.final.mejorDe} sets a ${F.fases.final.puntosSet} puntos.`],
+    ['Sets', `Todos contra todos: ${textoReglas(reglasFase(torneo, 'liga')).toLowerCase()}. La final: ${textoReglas(reglasFase(torneo, 'final')).toLowerCase()}.`],
     ['Clasificación', `Las ${F.clasificanFinal} parejas con mayor puntaje juegan la final.`],
     ['Desempate', '1. Diferencia de sets. 2. Si persiste el empate: diferencia de puntos.'],
   ];
